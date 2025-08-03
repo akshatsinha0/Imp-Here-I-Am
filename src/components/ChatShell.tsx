@@ -1,0 +1,391 @@
+import * as React from "react";
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { useNavigate, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import SidebarConversations from "./SidebarConversations";
+import SidebarProfileArea from "./SidebarProfileArea";
+import { useTheme } from "next-themes";
+import { Moon, Sun, User } from "lucide-react";
+import RightSidebarUsers from "./RightSidebarUsers";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { Tables } from "@/lib/types";
+import { useUserProfiles } from "@/hooks/useUserProfiles";
+interface Conversation {
+  id: string;
+  participant_1: string;
+  participant_2: string;
+}
+type UserProfile = Tables<"user_profiles">;
+export default function ChatShell() {
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [myClearedChats, setMyClearedChats] = useState<Record<string, true>>({});
+  const [clearedChatsLoaded, setClearedChatsLoaded] = useState(false);
+  const [pinnedChats, setPinnedChats] = useState<Record<string, string>>({});
+  const { user, loading } = useAuthUser();
+  const navigate = useNavigate();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [myProfile, setMyProfile] = useState<UserProfile | null>(null);
+  const [activeConversation, setActiveConversation] = useState<string | null>(null);
+  const location = useLocation();
+  useEffect(() => {
+    if (!user?.id) return;
+    setClearedChatsLoaded(false);
+    supabase
+      .from("cleared_chats")
+      .select("conversation_id")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        const map: Record<string, true> = {};
+        (data || []).forEach((row) => { map[row.conversation_id] = true; });
+        setMyClearedChats(map);
+        setClearedChatsLoaded(true);
+        console.log("[ChatShell] myClearedChats loaded", map);
+      });
+  }, [user?.id]);
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!clearedChatsLoaded) return;
+    supabase
+      .from("conversations")
+      .select("*")
+      .or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`)
+      .order("updated_at", { ascending: false })
+      .then(({ data }) => {
+        const filtered = (data || []).filter(
+          (c: Conversation) => !(myClearedChats[c.id])
+        );
+        console.log("[ChatShell] All conversations", data);
+        console.log("[ChatShell] Filtered after myClearedChats", filtered);
+        setConversations(filtered);
+      });
+  }, [user?.id, clearedChatsLoaded, myClearedChats]);
+  useEffect(() => {
+    if (!user?.id) return;
+    async function fetchPinned() {
+      const { data, error } = await supabase
+        .from("pinned_chats")
+        .select("*")
+        .eq("user_id", user.id);
+      if (error) {
+        console.warn("Could not fetch pinned chats:", error);
+        setPinnedChats({});
+        return;
+      }
+      const map: Record<string, string> = {};
+      (data || []).forEach((row) => {
+        map[row.conversation_id] = row.pinned_at;
+      });
+      setPinnedChats(map);
+    }
+    fetchPinned();
+  }, [user?.id]);
+  const handlePinConversation = async (conversationId: string, pin: boolean) => {
+    if (!user?.id) return;
+    if (pin) {
+      const { error } = await supabase
+        .from("pinned_chats")
+        .upsert([
+          {
+            user_id: user.id,
+            conversation_id: conversationId,
+            pinned_at: new Date().toISOString(),
+          }
+        ]);
+      if (error) {
+        console.error("Error pinning chat:", error);
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("pinned_chats")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("conversation_id", conversationId);
+      if (error) {
+        console.error("Error unpinning chat:", error);
+        return;
+      }
+    }
+    const { data, error } = await supabase
+      .from("pinned_chats")
+      .select("*")
+      .eq("user_id", user.id);
+    if (error) {
+      setPinnedChats({});
+      return;
+    }
+    const map: Record<string, string> = {};
+    (data || []).forEach((row) => {
+      map[row.conversation_id] = row.pinned_at;
+    });
+    setPinnedChats(map);
+  };
+  useEffect(() => {
+    if (!user?.id) return;
+    let unsub: any = null;
+    const ch = supabase
+      .channel("sidebar-messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const newMsg = payload.new;
+          const convId = newMsg.conversation_id;
+          setConversations((prev) => {
+            const idx = prev.findIndex((c) => c.id === convId);
+            if (idx === -1) return prev;
+            const updated = [...prev];
+            const [item] = updated.splice(idx, 1);
+            updated.unshift(item);
+            return updated;
+          });
+          if (activeConversation !== convId && newMsg.sender_id !== user.id) {
+            setUnreadCounts((prev) => ({
+              ...prev,
+              [convId]: (prev[convId] || 0) + 1,
+            }));
+          }
+        }
+      )
+      .subscribe();
+    unsub = ch;
+    return () => {
+      if (unsub) supabase.removeChannel(unsub);
+    };
+  }, [user?.id, activeConversation]);
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith("/chat/")) {
+      const chatId = path.split("/chat/")[1];
+      setActiveConversation(chatId);
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [chatId]: 0,
+      }));
+    } else {
+      setActiveConversation(null);
+    }
+  }, [location.pathname]);
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => setMyProfile(data || null));
+  }, [user?.id]);
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+  const handlePersonalSpaceClick = async () => {
+    if (!user) return;
+    let convo = conversations.find(
+      (c) => c.participant_1 === user.id && c.participant_2 === user.id
+    );
+    if (!convo) {
+      const { data: created, error } = await supabase
+        .from("conversations")
+        .insert([
+          {
+            participant_1: user.id,
+            participant_2: user.id,
+          },
+        ])
+        .select()
+        .single();
+      convo = created;
+      if (error) {
+        console.error("Failed to create personal space:", error);
+        return;
+      }
+      setConversations((prev) => [created, ...prev]);
+    }
+    navigate(`/chat/${convo.id}`);
+  };
+  const allOtherIds = React.useMemo(() => {
+    const ids: string[] = [];
+    conversations.forEach(c => {
+      if (user?.id && c.participant_1 === user?.id && c.participant_2 !== user?.id) {
+        ids.push(c.participant_2);
+      } else if (user?.id && c.participant_2 === user?.id && c.participant_1 !== user?.id) {
+        ids.push(c.participant_1);
+      } else if (c.participant_1 !== c.participant_2) {
+        ids.push(c.participant_1, c.participant_2);
+      }
+    });
+    return Array.from(new Set(ids.filter(id => id && id !== user?.id)));
+  }, [conversations, user?.id]);
+  const userProfiles = useUserProfiles(allOtherIds);
+  const handleConversationStarted = (convo: Conversation) => {
+    setConversations((prev) => {
+      if (prev.some((c) => c.id === convo.id)) {
+        const idx = prev.findIndex(c => c.id === convo.id);
+        const arr = [...prev];
+        const [item] = arr.splice(idx, 1);
+        arr.unshift(item);
+        return arr;
+      }
+      return [convo, ...prev];
+    });
+    navigate(`/chat/${convo.id}`);
+  };
+  useEffect(() => {
+    if (!user?.id) return;
+    let channel: any = null;
+    function bringConversationToTopAndSetUnread(convId: string, senderId: string) {
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === convId);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        const [item] = updated.splice(idx, 1);
+        updated.unshift(item);
+        return updated;
+      });
+      if (activeConversation !== convId && senderId !== user.id) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [convId]: (prev[convId] || 0) + 1,
+        }));
+      } else if (activeConversation === convId) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [convId]: 0,
+        }));
+      }
+    }
+    channel = supabase
+      .channel("sidebar-messages-global")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const msg = payload.new;
+          bringConversationToTopAndSetUnread(msg.conversation_id, msg.sender_id);
+          console.log("[ChatShell-Rt] Global new message:", msg);
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("[ChatShell-Rt] Subscribed to sidebar message global channel");
+        }
+      });
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+        console.log("[ChatShell-Rt] Unsubscribed from global sidebar channel");
+      }
+    };
+  }, [user?.id, activeConversation]);
+  const { theme, setTheme } = useTheme();
+  const handleDeleteConversation = (id: string) => {
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    setUnreadCounts((prev) => {
+      const newCounts = { ...prev };
+      delete newCounts[id];
+      return newCounts;
+    });
+  };
+  if (loading || (!user && !loading)) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div>Loading...</div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-screen bg-background text-foreground">
+      <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
+        {}
+        <ResizablePanel
+          defaultSize={18}
+          minSize={12}
+          maxSize={25}
+          className="max-w-xs min-w-[190px] w-64 border-r p-4 flex flex-col bg-gradient-to-b from-sidebar to-background/80"
+          style={{ flex: "none" }}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <span className="font-bold text-lg text-primary tracking-wider">Chats</span>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="rounded p-2 hover:bg-accent transition"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark" } mode`}
+            >
+              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+          <button
+            onClick={handlePersonalSpaceClick}
+            className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-2 py-2 hover:bg-primary/20 transition"
+          >
+            <User className="w-6 h-6 text-primary" />
+            <span className="font-medium text-md">Personal Space</span>
+          </button>
+          {}
+          <SidebarConversations
+            conversations={conversations}
+            userProfiles={userProfiles}
+            unreadCounts={unreadCounts}
+            userId={user.id}
+            setActiveConversation={setActiveConversation}
+            setUnreadCounts={setUnreadCounts}
+            onDeleteConversation={handleDeleteConversation}
+            pinnedChats={pinnedChats}
+            onPinConversation={handlePinConversation}
+          />
+          <SidebarProfileArea
+            myProfile={myProfile}
+            user={{ email: user?.email ?? "" }}
+            handleLogout={handleLogout}
+          />
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          defaultSize={52}
+          minSize={30}
+          maxSize={80}
+          className="flex flex-col h-full"
+          style={{
+            minWidth: "320px",
+            maxWidth: "900px",
+          }}
+        >
+          <main className="flex-1 flex flex-col min-h-0">
+            <Outlet />
+          </main>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        {}
+        <ResizablePanel
+          defaultSize={24}
+          minSize={14}
+          maxSize={34}
+          className="right-sidebar"
+          style={{ flex: "none", minWidth: 350, maxWidth: 450 }}
+        >
+          <RightSidebarUsers onConversationStarted={handleConversationStarted} />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
+  );
+}

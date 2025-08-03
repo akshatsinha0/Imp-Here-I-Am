@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { toast } from "@/components/ui/use-toast";
 import { Tables } from "@/lib/types";
+import { useSoundManager } from "@/utils/SoundManager";
 
 export enum MessageActionType {
   REPLY = 'REPLY',
@@ -39,6 +40,7 @@ export interface Message {
 const TYPING_TIMEOUT_MS = 2000;
 export function useChatMessages(conversationId?: string) {
   const { user } = useAuthUser();
+  const { playSendSound, playReceiveSound } = useSoundManager();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -149,6 +151,12 @@ export function useChatMessages(conversationId?: string) {
         (payload) => {
           const newMessage = payload.new as Message;
           if (clearedAt && new Date(newMessage.created_at) <= new Date(clearedAt)) return;
+          
+          // Play receive sound if message is from another user
+          if (newMessage.sender_id !== user?.id) {
+            playReceiveSound();
+          }
+          
           setMessages((prev) => {
             if (prev.some((msg) => msg.id === newMessage.id)) return prev;
             return [...prev, newMessage];
@@ -305,6 +313,9 @@ export function useChatMessages(conversationId?: string) {
       .select()
       .single();
     if (!error && data) {
+      // Play send sound
+      playSendSound();
+      
       if (!scheduledTime) {
         setMessages((prev) => [...prev, data]);
       }

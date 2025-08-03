@@ -3,15 +3,18 @@ import { useChatMessages } from "@/hooks/useChatMessages";
 import MessageList from "@/components/MessageList";
 import MessageComposer from "@/components/MessageComposer";
 import ForwardMessageDialog from "@/components/ForwardMessageDialog";
+import SoundToggle from "@/components/SoundToggle";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
+import { useSoundManager } from "@/utils/SoundManager";
 import { useState } from "react";
 
 const ChatView = () => {
   const { id: conversationId } = useParams<{ id: string }>();
   const chat = useChatMessages(conversationId);
+  const { playSuccessSound, playErrorSound } = useSoundManager();
   const [forwardDialog, setForwardDialog] = useState<{
     open: boolean;
     messageContent: string;
@@ -87,6 +90,7 @@ const ChatView = () => {
           description: error.message,
           variant: "destructive",
         });
+        playErrorSound();
         return;
       }
 
@@ -107,6 +111,9 @@ const ChatView = () => {
         title: "Message edited",
         description: "Message has been updated",
       });
+
+      // Play success sound
+      playSuccessSound();
     } catch (error) {
       console.error("Error editing message:", error);
       toast({
@@ -135,6 +142,7 @@ const ChatView = () => {
               description: error.message,
               variant: "destructive",
             });
+            playErrorSound();
             return;
           }
 
@@ -151,6 +159,7 @@ const ChatView = () => {
             title: "Message deleted",
             description: "Message has been deleted",
           });
+          playSuccessSound();
         } catch (error) {
           console.error("Error deleting message:", error);
           toast({
@@ -183,6 +192,7 @@ const ChatView = () => {
           title: "Message copied",
           description: "Message content copied to clipboard",
         });
+        playSuccessSound();
       } catch (error) {
         console.error("Failed to copy message:", error);
         toast({
@@ -221,15 +231,18 @@ const ChatView = () => {
             </span>
           )}
         </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          title="Clear chat"
-          onClick={chat.clearChat}
-          className="touch-target shrink-0"
-        >
-          <Trash2 className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <SoundToggle />
+          <Button
+            size="icon"
+            variant="ghost"
+            title="Clear chat"
+            onClick={chat.clearChat}
+            className="touch-target shrink-0"
+          >
+            <Trash2 className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
+          </Button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 bg-background/90 dark:bg-background/80 transition-colors">
         {chat.loading && (

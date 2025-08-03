@@ -12,6 +12,7 @@ import { Search, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { toast } from "@/hooks/use-toast";
+import { useSoundManager } from "@/utils/SoundManager";
 
 interface Contact {
   id: string;
@@ -34,6 +35,7 @@ const ForwardMessageDialog: React.FC<ForwardMessageDialogProps> = ({
   messageId,
 }) => {
   const { user } = useAuthUser();
+  const { playSuccessSound, playErrorSound } = useSoundManager();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -136,6 +138,7 @@ const ForwardMessageDialog: React.FC<ForwardMessageDialogProps> = ({
         title: "Message forwarded",
         description: `Message forwarded to ${selectedContacts.length} contact${selectedContacts.length > 1 ? 's' : ''}`,
       });
+      playSuccessSound();
 
       onOpenChange(false);
       setSelectedContacts([]);
@@ -147,6 +150,7 @@ const ForwardMessageDialog: React.FC<ForwardMessageDialogProps> = ({
         description: "Failed to forward message",
         variant: "destructive",
       });
+      playErrorSound();
     } finally {
       setLoading(false);
     }

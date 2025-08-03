@@ -3,6 +3,17 @@ import { supabase } from "@/lib/supabase";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { toast } from "@/components/ui/use-toast";
 import { Tables } from "@/lib/types";
+
+export enum MessageActionType {
+  REPLY = 'REPLY',
+  EDIT = 'EDIT',
+  DELETE = 'DELETE',
+}
+
+export interface MessageAction {
+  type: MessageActionType;
+  payload?: any;
+}
 export interface Message {
   id: string;
   content: string;
@@ -13,6 +24,17 @@ export interface Message {
   file_mime: string | null;
   message_type: string | null;
   readers: string[] | null;
+  reply_to_id?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  reactions?: Array<{
+    emoji: string;
+    users: Array<{
+      id: string;
+      display_name: string;
+    }>;
+  }>;
+  reply_to?: Message | null;
 }
 const TYPING_TIMEOUT_MS = 2000;
 export function useChatMessages(conversationId?: string) {
@@ -29,6 +51,9 @@ export function useChatMessages(conversationId?: string) {
   const [partnerProfile, setPartnerProfile] = useState<{ display_name: string } | null>(null);
   const [clearedAt, setClearedAt] = useState<string | null>(null);
   const [isCleared, setIsCleared] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [scheduledTime, setScheduledTime] = useState<string | null>(null);
   useEffect(() => {
     if (!conversationId || !user?.id) return;
     supabase
@@ -130,6 +155,23 @@ export function useChatMessages(conversationId?: string) {
           });
           setIsCleared(false);
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as Message;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
+            )
+          );
         }
       )
       .subscribe();
@@ -236,28 +278,49 @@ export function useChatMessages(conversationId?: string) {
       outType = "voice_note"; file_url = info.url; file_name = dummyName; file_mime = "audio/webm";
       outContent = "Voice Note";
     }
+    const messageData: any = {
+      content: outContent,
+      conversation_id: conversationId,
+      sender_id: user.id,
+      message_type: outType,
+      file_url,
+      file_name,
+      file_mime,
+      readers: [user.id],
+    };
+    
+    // Add reply_to_id if replying
+    if (replyToMessage) {
+      messageData.reply_to_id = replyToMessage.id;
+    }
+    
+    // Add scheduled_at if scheduling
+    if (scheduledTime) {
+      messageData.scheduled_at = scheduledTime;
+    }
+    
     const { data, error } = await supabase
       .from("messages")
-      .insert([
-        {
-          content: outContent,
-          conversation_id: conversationId,
-          sender_id: user.id,
-          message_type: outType,
-          file_url,
-          file_name,
-          file_mime,
-          readers: [user.id],
-        },
-      ])
+      .insert([messageData])
       .select()
       .single();
     if (!error && data) {
-      setMessages((prev) => [...prev, data]);
-      setInput(""); setFile(null);
+      if (!scheduledTime) {
+        setMessages((prev) => [...prev, data]);
+      }
+      setInput(""); 
+      setFile(null);
+      setReplyToMessage(null);
+      setScheduledTime(null);
       setIsCleared(false);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       if (channelRef.current) channelRef.current.track({ isTyping: false });
+      
+      if (scheduledTime) {
+        toast({ title: "Message scheduled", description: `Your message will be sent at ${new Date(scheduledTime).toLocaleString()}` });
+      }
+    } else if (error) {
+      toast({ title: "Failed to send message", description: error.message, variant: "destructive" });
     }
   };
   const clearChat = async () => {

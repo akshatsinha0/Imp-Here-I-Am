@@ -27,6 +27,35 @@ export type Database = {
         }
         Relationships: []
       }
+      message_reactions: {
+        Row: {
+          message_id: string
+          user_id: string
+          emoji: string
+          created_at: string
+        }
+        Insert: {
+          message_id: string
+          user_id: string
+          emoji: string
+          created_at?: string
+        }
+        Update: {
+          message_id?: string
+          user_id?: string
+          emoji?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -63,6 +92,11 @@ export type Database = {
           message_type: string | null
           readers: string[] | null
           sender_id: string
+          reply_to_id: string | null
+          edited_at: string | null
+          deleted_at: string | null
+          scheduled_at: string | null
+          forwarded_from_id: string | null
         }
         Insert: {
           content: string

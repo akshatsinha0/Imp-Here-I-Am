@@ -6,9 +6,11 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import SidebarConversations from "./SidebarConversations";
 import SidebarProfileArea from "./SidebarProfileArea";
+import HamburgerMenu from "./HamburgerMenu";
 import { useTheme } from "next-themes";
-import { Moon, Sun, User } from "lucide-react";
+import { Moon, Sun, User, Users } from "lucide-react";
 import RightSidebarUsers from "./RightSidebarUsers";
+import ErrorBoundary from "./ErrorBoundary";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -27,6 +29,8 @@ export default function ChatShell() {
   const [myClearedChats, setMyClearedChats] = useState<Record<string, true>>({});
   const [clearedChatsLoaded, setClearedChatsLoaded] = useState(false);
   const [pinnedChats, setPinnedChats] = useState<Record<string, string>>({});
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const { user, loading } = useAuthUser();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -128,9 +132,11 @@ export default function ChatShell() {
   };
   useEffect(() => {
     if (!user?.id) return;
-    let unsub: any = null;
+    
+    let channel: any = null;
+    
     const ch = supabase
-      .channel("sidebar-messages")
+      .channel(`sidebar-messages-${user.id}-${Date.now()}`) // Make channel name unique
       .on(
         "postgres_changes",
         {
@@ -157,10 +163,18 @@ export default function ChatShell() {
           }
         }
       )
-      .subscribe();
-    unsub = ch;
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("[ChatShell] Subscribed to sidebar messages");
+        }
+      });
+    
+    channel = ch;
+    
     return () => {
-      if (unsub) supabase.removeChannel(unsub);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user?.id, activeConversation]);
   useEffect(() => {
@@ -247,7 +261,9 @@ export default function ChatShell() {
   };
   useEffect(() => {
     if (!user?.id) return;
+    
     let channel: any = null;
+    
     function bringConversationToTopAndSetUnread(convId: string, senderId: string) {
       setConversations((prev) => {
         const idx = prev.findIndex((c) => c.id === convId);
@@ -269,8 +285,9 @@ export default function ChatShell() {
         }));
       }
     }
+    
     channel = supabase
-      .channel("sidebar-messages-global")
+      .channel(`sidebar-messages-global-${user.id}-${Date.now()}`)
       .on(
         "postgres_changes",
         {
@@ -287,8 +304,11 @@ export default function ChatShell() {
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           console.log("[ChatShell-Rt] Subscribed to sidebar message global channel");
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("[ChatShell-Rt] Channel error for global sidebar");
         }
       });
+    
     return () => {
       if (channel) {
         supabase.removeChannel(channel);
@@ -306,6 +326,26 @@ export default function ChatShell() {
       return newCounts;
     });
   };
+
+  const toggleLeftSidebar = () => {
+    setLeftSidebarOpen(!leftSidebarOpen);
+    if (rightSidebarOpen) setRightSidebarOpen(false);
+  };
+
+  const toggleRightSidebar = () => {
+    setRightSidebarOpen(!rightSidebarOpen);
+    if (leftSidebarOpen) setLeftSidebarOpen(false);
+  };
+
+  const closeSidebars = () => {
+    setLeftSidebarOpen(false);
+    setRightSidebarOpen(false);
+  };
+
+  const handleConversationClick = (conversationId: string) => {
+    navigate(`/chat/${conversationId}`);
+    closeSidebars();
+  };
   if (loading || (!user && !loading)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -314,78 +354,147 @@ export default function ChatShell() {
     );
   }
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
-        {}
-        <ResizablePanel
-          defaultSize={18}
-          minSize={12}
-          maxSize={25}
-          className="max-w-xs min-w-[190px] w-64 border-r p-4 flex flex-col bg-gradient-to-b from-sidebar to-background/80"
-          style={{ flex: "none" }}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <span className="font-bold text-lg text-primary tracking-wider">Chats</span>
+    <>
+      <div className="block md:hidden h-screen bg-background text-foreground mobile-chat-container">
+        <div className={`mobile-overlay ${leftSidebarOpen || rightSidebarOpen ? 'active' : ''}`} onClick={closeSidebars}></div>
+        
+        <div className={`mobile-sidebar-left ${leftSidebarOpen ? 'open' : ''} bg-gradient-to-b from-sidebar to-background/80`}>
+          <div className="flex flex-col h-full p-4">
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-bold text-lg text-primary tracking-wider">Chats</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="rounded p-2 hover:bg-accent transition mobile-touch-target"
+                  aria-label={`Switch to ${theme === "dark" ? "light" : "dark" } mode`}
+                >
+                  {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+                <HamburgerMenu isActive={leftSidebarOpen} onClick={closeSidebars} />
+              </div>
+            </div>
+            
             <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="rounded p-2 hover:bg-accent transition"
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark" } mode`}
+              onClick={handlePersonalSpaceClick}
+              className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-3 py-3 hover:bg-primary/20 transition mobile-touch-target"
             >
-              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <User className="w-6 h-6 text-primary" />
+              <span className="font-medium text-base">Personal Space</span>
             </button>
+            
+            <div className="flex-1 overflow-y-auto">
+              <SidebarConversations
+                conversations={conversations}
+                userProfiles={userProfiles}
+                unreadCounts={unreadCounts}
+                userId={user.id}
+                setActiveConversation={setActiveConversation}
+                setUnreadCounts={setUnreadCounts}
+                onDeleteConversation={handleDeleteConversation}
+                pinnedChats={pinnedChats}
+                onPinConversation={handlePinConversation}
+                onConversationClick={handleConversationClick}
+              />
+            </div>
+            
+            <SidebarProfileArea
+              myProfile={myProfile}
+              user={{ email: user?.email ?? "" }}
+              handleLogout={handleLogout}
+            />
           </div>
-          <button
-            onClick={handlePersonalSpaceClick}
-            className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-2 py-2 hover:bg-primary/20 transition"
-          >
-            <User className="w-6 h-6 text-primary" />
-            <span className="font-medium text-md">Personal Space</span>
-          </button>
-          {}
-          <SidebarConversations
-            conversations={conversations}
-            userProfiles={userProfiles}
-            unreadCounts={unreadCounts}
-            userId={user.id}
-            setActiveConversation={setActiveConversation}
-            setUnreadCounts={setUnreadCounts}
-            onDeleteConversation={handleDeleteConversation}
-            pinnedChats={pinnedChats}
-            onPinConversation={handlePinConversation}
-          />
-          <SidebarProfileArea
-            myProfile={myProfile}
-            user={{ email: user?.email ?? "" }}
-            handleLogout={handleLogout}
-          />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel
-          defaultSize={52}
-          minSize={30}
-          maxSize={80}
-          className="flex flex-col h-full"
-          style={{
-            minWidth: "320px",
-            maxWidth: "900px",
-          }}
-        >
-          <main className="flex-1 flex flex-col min-h-0">
-            <Outlet />
+        </div>
+
+        <div className={`mobile-sidebar-right ${rightSidebarOpen ? 'open' : ''} bg-gradient-to-b from-sidebar to-background/80`}>
+          <div className="flex flex-col h-full p-4">
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-bold text-lg text-primary tracking-wider">Users</span>
+              <HamburgerMenu isActive={rightSidebarOpen} onClick={closeSidebars} />
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              <RightSidebarUsers onConversationStarted={handleConversationStarted} />
+            </div>
+          </div>
+        </div>
+
+        <div className={`mobile-chat-main ${leftSidebarOpen || rightSidebarOpen ? 'sidebar-open' : ''}`}>
+          <main className="flex-1 flex flex-col h-full">
+            <Outlet context={{ toggleLeftSidebar, toggleRightSidebar, leftSidebarOpen, rightSidebarOpen }} />
           </main>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        {}
-        <ResizablePanel
-          defaultSize={24}
-          minSize={14}
-          maxSize={34}
-          className="right-sidebar"
-          style={{ flex: "none", minWidth: 350, maxWidth: 450 }}
-        >
-          <RightSidebarUsers onConversationStarted={handleConversationStarted} />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+        </div>
+      </div>
+
+      <div className="hidden md:flex h-screen bg-background text-foreground">
+        <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
+          <ResizablePanel
+            defaultSize={18}
+            minSize={12}
+            maxSize={25}
+            className="max-w-xs min-w-[190px] w-64 border-r p-4 flex flex-col bg-gradient-to-b from-sidebar to-background/80"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-bold text-lg text-primary tracking-wider">Chats</span>
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="rounded p-2 hover:bg-accent transition"
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark" } mode`}
+              >
+                {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+            </div>
+            <button
+              onClick={handlePersonalSpaceClick}
+              className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-2 py-2 hover:bg-primary/20 transition"
+            >
+              <User className="w-6 h-6 text-primary" />
+              <span className="font-medium text-md">Personal Space</span>
+            </button>
+            
+            <SidebarConversations
+              conversations={conversations}
+              userProfiles={userProfiles}
+              unreadCounts={unreadCounts}
+              userId={user.id}
+              setActiveConversation={setActiveConversation}
+              setUnreadCounts={setUnreadCounts}
+              onDeleteConversation={handleDeleteConversation}
+              pinnedChats={pinnedChats}
+              onPinConversation={handlePinConversation}
+            />
+            <SidebarProfileArea
+              myProfile={myProfile}
+              user={{ email: user?.email ?? "" }}
+              handleLogout={handleLogout}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            defaultSize={52}
+            minSize={30}
+            maxSize={80}
+            className="flex flex-col h-full"
+            style={{
+              minWidth: "320px",
+              maxWidth: "900px",
+            }}
+          >
+            <main className="flex-1 flex flex-col min-h-0">
+              <Outlet context={{ toggleLeftSidebar, toggleRightSidebar, leftSidebarOpen, rightSidebarOpen }} />
+            </main>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            defaultSize={24}
+            minSize={14}
+            maxSize={34}
+            className="right-sidebar"
+            style={{ minWidth: 350, maxWidth: 450 }}
+          >
+            <RightSidebarUsers onConversationStarted={handleConversationStarted} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </>
   );
 }

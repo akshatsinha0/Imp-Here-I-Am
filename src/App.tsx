@@ -12,6 +12,7 @@ import Settings from "./pages/Settings";
 import Verify from "./pages/Verify";
 import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "next-themes";
+import ErrorBoundary from "@/components/ErrorBoundary";
 const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,7 +28,7 @@ const App = () => (
             {}
             <Route element={<ChatShell />}>
               <Route path="/" element={<Index />} />
-              <Route path="/chat/:id" element={<ChatView />} />
+              <Route path="/chat/:id" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             {}

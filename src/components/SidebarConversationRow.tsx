@@ -30,6 +30,7 @@ interface SidebarConversationRowProps {
   pinnedChats?: Record<string, string>;
   onDeleteConversation: (id: string) => void;
   currentChatId: string | null;
+  onConversationClick?: (id: string) => void;
 }
 export default function SidebarConversationRow({
   conversation: c,
@@ -43,6 +44,7 @@ export default function SidebarConversationRow({
   setUnreadCounts,
   onDeleteConversation,
   currentChatId,
+  onConversationClick,
 }: SidebarConversationRowProps) {
   const navigate = useNavigate();
   const handleDeleteConversation = async (id: string) => {
@@ -66,7 +68,11 @@ export default function SidebarConversationRow({
     <div className="relative w-full">
       <button
         onClick={() => {
-          navigate(`/chat/${c.id}`);
+          if (onConversationClick) {
+            onConversationClick(c.id);
+          } else {
+            navigate(`/chat/${c.id}`);
+          }
           setActiveConversation(c.id);
           setUnreadCounts((prev) => ({
             ...prev,
@@ -104,14 +110,14 @@ export default function SidebarConversationRow({
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              className="ml-2 p-1 rounded hover:bg-accent text-muted-foreground"
+            <div
+              className="ml-2 p-1 rounded hover:bg-accent text-muted-foreground cursor-pointer"
               tabIndex={-1}
               aria-label="Open conversation actions"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="w-4 h-4" />
-            </button>
+            </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem

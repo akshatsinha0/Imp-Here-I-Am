@@ -31,6 +31,7 @@ export default function SidebarConversations({
   onDeleteConversation,
   pinnedChats = {},
   onPinConversation,
+  onConversationClick,
 }: {
   conversations: Conversation[];
   userProfiles: Record<string, UserProfile>;
@@ -41,6 +42,7 @@ export default function SidebarConversations({
   onDeleteConversation: (id: string) => void;
   pinnedChats?: Record<string, string>;
   onPinConversation?: (id: string, pin: boolean) => void;
+  onConversationClick?: (id: string) => void;
 }) {
   const location = useLocation();
   const params = useParams();
@@ -88,6 +90,7 @@ export default function SidebarConversations({
             pinnedChats={pinnedChats}
             onPinConversation={onPinConversation}
             currentChatId={currentChatId}
+            onConversationClick={onConversationClick}
           />
         ))
       ) : (

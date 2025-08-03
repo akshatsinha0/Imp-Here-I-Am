@@ -1,5 +1,4 @@
 import React from "react";
-import { cn } from "@/lib/utils";
 
 interface Reaction {
   emoji: string;
@@ -23,25 +22,20 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
   if (!reactions || reactions.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1 mt-1">
+    <div className="message-reactions">
       {reactions.map((reaction) => {
-        const hasReacted = reaction.users.some((user) => user.id === currentUserId);
+        const hasReacted = reaction.users.some(user => user.id === currentUserId);
         const count = reaction.users.length;
-
+        
         return (
           <button
             key={reaction.emoji}
             onClick={() => onReactionClick(reaction.emoji)}
-            className={cn(
-              "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all",
-              "border hover:scale-105",
-              hasReacted
-                ? "bg-primary/20 border-primary/40 text-primary"
-                : "bg-muted/50 border-muted-foreground/20 hover:bg-muted"
-            )}
+            className={`reaction-button ${hasReacted ? 'reacted' : ''}`}
+            title={reaction.users.map(u => u.display_name).join(", ")}
           >
-            <span className="text-sm">{reaction.emoji}</span>
-            {count > 1 && <span className="font-medium">{count}</span>}
+            <span className="reaction-emoji">{reaction.emoji}</span>
+            {count > 1 && <span className="reaction-count">{count}</span>}
           </button>
         );
       })}

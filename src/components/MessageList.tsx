@@ -111,8 +111,8 @@ const MessageList: React.FC<MessageListProps> = ({
                 </span>
               </div>
             )}
-            <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-              <div className="group relative max-w-xs">
+            <div className={`flex ${isMine ? "justify-end" : "justify-start"} px-2 sm:px-0`}>
+              <div className="group relative mobile-message-bubble max-w-xs sm:max-w-sm md:max-w-md">
                 {/* Reply Preview */}
                 {msg.reply_to && (
                   <div className="mb-1 ml-3 px-3 py-1 bg-muted/30 rounded-t-lg border-l-4 border-primary/50">
@@ -123,7 +123,7 @@ const MessageList: React.FC<MessageListProps> = ({
 
                 {/* Message Bubble */}
                 <div
-                  className={`rounded-xl px-5 py-3 break-words shadow-lg text-base transition-colors
+                  className={`mobile-card rounded-xl px-3 sm:px-4 md:px-5 py-2 sm:py-3 break-words shadow-lg text-sm sm:text-base transition-colors
                   ${isMine ? "bg-gradient-to-br from-primary to-secondary text-primary-foreground"
                             : "bg-gradient-to-tr from-muted to-accent text-foreground"}
                   ${isMine ? "rounded-br-xl rounded-tr-sm"
@@ -141,16 +141,24 @@ const MessageList: React.FC<MessageListProps> = ({
                     )}
                   </span>
                   <div className="flex items-center justify-between mt-1 gap-2">
-                    <div className="text-[10px] text-muted-foreground opacity-80">
-                      {new Date(msg.created_at).toLocaleTimeString()}
-                      {msg.edited_at && <span className="ml-1">(edited)</span>}
+                    <div className="text-[10px] sm:text-xs text-muted-foreground opacity-80">
+                      {new Date(msg.created_at).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: false 
+                      })}
+                      {msg.edited_at && <span className="ml-1 text-[9px] sm:text-[10px]">(edited)</span>}
                     </div>
                     {isMine && idx === messages.length - 1 && (
                       <MessageStatusLabel isRead={isRead} />
                     )}
                   </div>
                   
-                  {/* Message Reactions - Coming Soon */}
+                  <MessageReactions
+                    reactions={msg.reactions || []}
+                    currentUserId={currentUserId}
+                    onReactionClick={(emoji) => onReaction?.(msg.id, emoji)}
+                  />
                 </div>
 
                 {/* Message Actions */}

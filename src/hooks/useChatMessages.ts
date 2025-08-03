@@ -38,6 +38,8 @@ export interface Message {
   reply_to?: Message | null;
 }
 const TYPING_TIMEOUT_MS = 2000;
+
+
 export function useChatMessages(conversationId?: string) {
   const { user } = useAuthUser();
   const { playSendSound, playReceiveSound } = useSoundManager();
@@ -103,43 +105,77 @@ export function useChatMessages(conversationId?: string) {
     return () => mql.removeEventListener("change", handler);
   }, []);
   useEffect(() => {
-    if (!conversationId || !user?.id) return;
-    setLoading(true);
-    const fetchClearedAndMessages = async () => {
-      const { data: clearData } = await supabase
-        .from("cleared_chats")
-        .select("cleared_at")
-        .eq("user_id", user.id)
-        .eq("conversation_id", conversationId)
-        .maybeSingle();
-      let cutoff = clearData?.cleared_at ?? null;
-      setClearedAt(cutoff);
-      let query = supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-      if (cutoff) query = query.gt("created_at", cutoff);
-      const { data: msgs } = await query;
-      setMessages((msgs as Message[]) || []);
-      if (cutoff && (!msgs || msgs.length === 0)) {
-        setIsCleared(true);
-      } else {
-        setIsCleared(false);
-      }
+    if (!conversationId || !user?.id) {
       setLoading(false);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
+      return;
+    }
+    
+    setLoading(true);
+    
+    const fetchClearedAndMessages = async () => {
+      try {
+        const { data: clearData } = await supabase
+          .from("cleared_chats")
+          .select("cleared_at")
+          .eq("user_id", user.id)
+          .eq("conversation_id", conversationId)
+          .maybeSingle();
+          
+        let cutoff = clearData?.cleared_at ?? null;
+        setClearedAt(cutoff);
+        
+        let query = supabase
+          .from("messages")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true });
+          
+        if (cutoff) query = query.gt("created_at", cutoff);
+        
+        const { data: msgs, error } = await query;
+        
+        if (error) {
+          console.error("Error fetching messages:", error);
+          setMessages([]);
+        } else {
+          const messagesWithEmptyReactions = (msgs || []).map((msg: any) => ({
+            ...msg,
+            reactions: []
+          }));
+          setMessages(messagesWithEmptyReactions as Message[]);
+        }
+        
+        if (cutoff && (!msgs || msgs.length === 0)) {
+          setIsCleared(true);
+        } else {
+          setIsCleared(false);
+        }
+        
+        setLoading(false);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
+      } catch (error) {
+        console.error("Error in fetchClearedAndMessages:", error);
+        setLoading(false);
+        setMessages([]);
+      }
     };
+    
     fetchClearedAndMessages();
   }, [conversationId, user?.id]);
+
+
   const realtimeSubRef = useRef<any>(null);
   useEffect(() => {
     if (!conversationId) return;
+    
+    // Clean up existing subscription
     if (realtimeSubRef.current) {
       supabase.removeChannel(realtimeSubRef.current);
+      realtimeSubRef.current = null;
     }
+    
     const channel = supabase
-      .channel(`message-updates-${conversationId}`)
+      .channel(`message-updates-${conversationId}-${Date.now()}`) // Add timestamp to ensure unique channel names
       .on(
         "postgres_changes",
         {
@@ -149,20 +185,23 @@ export function useChatMessages(conversationId?: string) {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const newMessage = payload.new as Message;
-          if (clearedAt && new Date(newMessage.created_at) <= new Date(clearedAt)) return;
-          
-          // Play receive sound if message is from another user
-          if (newMessage.sender_id !== user?.id) {
-            playReceiveSound();
+          try {
+            const newMessage = payload.new as Message;
+            if (clearedAt && new Date(newMessage.created_at) <= new Date(clearedAt)) return;
+            
+            if (newMessage.sender_id !== user?.id) {
+              playReceiveSound();
+            }
+            
+            setMessages((prev) => {
+              if (prev.some((msg) => msg.id === newMessage.id)) return prev;
+              return [...prev, { ...newMessage, reactions: [] }];
+            });
+            setIsCleared(false);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          } catch (error) {
+            console.error("Error handling new message:", error);
           }
-          
-          setMessages((prev) => {
-            if (prev.some((msg) => msg.id === newMessage.id)) return prev;
-            return [...prev, newMessage];
-          });
-          setIsCleared(false);
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
       )
       .on(
@@ -182,22 +221,38 @@ export function useChatMessages(conversationId?: string) {
           );
         }
       )
-      .subscribe();
+
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log(`[useChatMessages] Subscribed to message updates for conversation ${conversationId}`);
+        } else if (status === "CHANNEL_ERROR") {
+          console.error(`[useChatMessages] Channel error for conversation ${conversationId}`);
+        }
+      });
+    
     realtimeSubRef.current = channel;
+    
     return () => {
       if (realtimeSubRef.current) {
         supabase.removeChannel(realtimeSubRef.current);
         realtimeSubRef.current = null;
       }
     };
-  }, [conversationId, clearedAt]);
+  }, [conversationId, user?.id]);
   const channelRef = useRef<any>(null);
   useEffect(() => {
     if (!conversationId || !user?.id) return;
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
-    const presCh = supabase.channel(`chat-${conversationId}`, {
+    
+    // Clean up existing presence channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    
+    const presCh = supabase.channel(`chat-presence-${conversationId}-${user.id}-${Date.now()}`, {
       config: { presence: { key: user.id } },
     });
+    
     presCh
       .on("presence", { event: "sync" }, () => {
         updateTypingIndicator(presCh.presenceState());
@@ -213,34 +268,62 @@ export function useChatMessages(conversationId?: string) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await presCh.track({ isTyping: false });
+          console.log(`[useChatMessages] Subscribed to presence for conversation ${conversationId}`);
+          try {
+            await presCh.track({ isTyping: false });
+          } catch (error) {
+            console.warn("Error tracking initial presence:", error);
+          }
+        } else if (status === "CHANNEL_ERROR") {
+          console.error(`[useChatMessages] Presence channel error for conversation ${conversationId}`);
         }
       });
+    
     channelRef.current = presCh;
+    
     return () => {
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current); channelRef.current = null;
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
-      clearTimeout(typingTimeout.current!);
+      if (typingTimeout.current) {
+        clearTimeout(typingTimeout.current);
+        typingTimeout.current = null;
+      }
     };
   }, [conversationId, user?.id]);
   function updateTypingIndicator(state: any) {
-    for (const uid in state) {
-      if (uid !== user?.id && state[uid]?.[0]?.isTyping) {
-        setIsOtherTyping(true); resetTypingTimeout(); return;
+    try {
+      for (const uid in state) {
+        if (uid !== user?.id && state[uid]?.[0]?.isTyping) {
+          setIsOtherTyping(true); 
+          resetTypingTimeout(); 
+          return;
+        }
       }
+      setIsOtherTyping(false);
+    } catch (error) {
+      console.warn("Error updating typing indicator:", error);
+      setIsOtherTyping(false);
     }
-    setIsOtherTyping(false);
   }
   function resetTypingTimeout() {
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => setIsOtherTyping(false), TYPING_TIMEOUT_MS + 500);
+    try {
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => setIsOtherTyping(false), TYPING_TIMEOUT_MS + 500);
+    } catch (error) {
+      console.warn("Error resetting typing timeout:", error);
+    }
   }
   const handleTyping = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
-    if (channelRef.current) {
-      await channelRef.current.track({ isTyping: true });
-      setTimeout(() => channelRef.current?.track({ isTyping: false }), TYPING_TIMEOUT_MS);
+    try {
+      if (channelRef.current) {
+        await channelRef.current.track({ isTyping: true });
+        setTimeout(() => channelRef.current?.track({ isTyping: false }), TYPING_TIMEOUT_MS);
+      }
+    } catch (error) {
+      console.warn("Error tracking typing status:", error);
     }
   };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -317,7 +400,7 @@ export function useChatMessages(conversationId?: string) {
       playSendSound();
       
       if (!scheduledTime) {
-        setMessages((prev) => [...prev, data]);
+        setMessages((prev) => [...prev, { ...data, reactions: [] }]);
       }
       setInput(""); 
       setFile(null);
@@ -375,6 +458,29 @@ export function useChatMessages(conversationId?: string) {
       }
     });
   }, [messages, user?.id]);
+  if (!conversationId) {
+    return {
+      user: null,
+      messages: [],
+      setMessages: () => {},
+      input: "",
+      setInput: () => {},
+      loading: false,
+      uploadingFile: false,
+      file: null,
+      setFile: () => {},
+      sendMessage: async () => {},
+      handleTyping: () => {},
+      handleKeyDown: () => {},
+      isOtherTyping: false,
+      theme: "auto" as const,
+      messagesEndRef: { current: null },
+      partnerProfile: null,
+      clearChat: async () => {},
+      isCleared: false,
+    };
+  }
+
   return {
     user,
     messages,

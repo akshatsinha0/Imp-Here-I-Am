@@ -10,6 +10,7 @@ import ChatShell from "@/components/ChatShell";
 import ChatView from "./pages/ChatView";
 import Settings from "./pages/Settings";
 import Verify from "./pages/Verify";
+import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "next-themes";
 const queryClient = new QueryClient();
 const App = () => (
@@ -18,6 +19,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <InstallPrompt />
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />

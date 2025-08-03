@@ -166,126 +166,131 @@ export function useChatMessages(conversationId?: string) {
 
   const realtimeSubRef = useRef<any>(null);
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || !user?.id) return;
     
     // Clean up existing subscription
-    if (realtimeSubRef.current) {
-      supabase.removeChannel(realtimeSubRef.current);
-      realtimeSubRef.current = null;
-    }
-    
-    const channel = supabase
-      .channel(`message-updates-${conversationId}-${Date.now()}`) // Add timestamp to ensure unique channel names
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          try {
-            const newMessage = payload.new as Message;
-            if (clearedAt && new Date(newMessage.created_at) <= new Date(clearedAt)) return;
-            
-            if (newMessage.sender_id !== user?.id) {
-              playReceiveSound();
-            }
-            
-            setMessages((prev) => {
-              if (prev.some((msg) => msg.id === newMessage.id)) return prev;
-              return [...prev, { ...newMessage, reactions: [] }];
-            });
-            setIsCleared(false);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-          } catch (error) {
-            console.error("Error handling new message:", error);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const updatedMessage = payload.new as Message;
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
-            )
-          );
-        }
-      )
-
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          console.log(`[useChatMessages] Subscribed to message updates for conversation ${conversationId}`);
-        } else if (status === "CHANNEL_ERROR") {
-          console.error(`[useChatMessages] Channel error for conversation ${conversationId}`);
-        }
-      });
-    
-    realtimeSubRef.current = channel;
-    
-    return () => {
+    const cleanup = async () => {
       if (realtimeSubRef.current) {
-        supabase.removeChannel(realtimeSubRef.current);
+        await supabase.removeChannel(realtimeSubRef.current);
         realtimeSubRef.current = null;
       }
     };
-  }, [conversationId, user?.id]);
+    
+    cleanup().then(() => {
+      const channel = supabase
+        .channel(`message-updates-${conversationId}-${user.id}-${Date.now()}`) // Add user ID and timestamp to ensure unique channel names
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            try {
+              const newMessage = payload.new as Message;
+              if (clearedAt && new Date(newMessage.created_at) <= new Date(clearedAt)) return;
+              
+              if (newMessage.sender_id !== user?.id) {
+                playReceiveSound();
+              }
+              
+              setMessages((prev) => {
+                if (prev.some((msg) => msg.id === newMessage.id)) return prev;
+                return [...prev, { ...newMessage, reactions: [] }];
+              });
+              setIsCleared(false);
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            } catch (error) {
+              console.error("Error handling new message:", error);
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const updatedMessage = payload.new as Message;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
+              )
+            );
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            console.log(`[useChatMessages] Subscribed to message updates for conversation ${conversationId}`);
+          } else if (status === "CHANNEL_ERROR") {
+            console.error(`[useChatMessages] Channel error for conversation ${conversationId}`);
+          } else if (status === "CLOSED") {
+            console.log(`[useChatMessages] Channel closed for conversation ${conversationId}`);
+          }
+        });
+      
+      realtimeSubRef.current = channel;
+    });
+    
+    return () => {
+      cleanup();
+    };
+  }, [conversationId, user?.id, clearedAt, playReceiveSound]);
   const channelRef = useRef<any>(null);
   useEffect(() => {
     if (!conversationId || !user?.id) return;
     
     // Clean up existing presence channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-    
-    const presCh = supabase.channel(`chat-presence-${conversationId}-${user.id}-${Date.now()}`, {
-      config: { presence: { key: user.id } },
-    });
-    
-    presCh
-      .on("presence", { event: "sync" }, () => {
-        updateTypingIndicator(presCh.presenceState());
-      })
-      .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        if (key !== user.id && newPresences?.[0]?.isTyping) {
-          setIsOtherTyping(true);
-          resetTypingTimeout();
-        }
-      })
-      .on("presence", { event: "leave" }, ({ key }) => {
-        if (key !== user.id) setIsOtherTyping(false);
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          console.log(`[useChatMessages] Subscribed to presence for conversation ${conversationId}`);
-          try {
-            await presCh.track({ isTyping: false });
-          } catch (error) {
-            console.warn("Error tracking initial presence:", error);
-          }
-        } else if (status === "CHANNEL_ERROR") {
-          console.error(`[useChatMessages] Presence channel error for conversation ${conversationId}`);
-        }
-      });
-    
-    channelRef.current = presCh;
-    
-    return () => {
+    const cleanup = async () => {
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        await supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+    };
+    
+    cleanup().then(() => {
+      const presCh = supabase.channel(`chat-presence-${conversationId}-${user.id}-${Date.now()}`, {
+        config: { presence: { key: user.id } },
+      });
+      
+      presCh
+        .on("presence", { event: "sync" }, () => {
+          updateTypingIndicator(presCh.presenceState());
+        })
+        .on("presence", { event: "join" }, ({ key, newPresences }) => {
+          if (key !== user.id && newPresences?.[0]?.isTyping) {
+            setIsOtherTyping(true);
+            resetTypingTimeout();
+          }
+        })
+        .on("presence", { event: "leave" }, ({ key }) => {
+          if (key !== user.id) setIsOtherTyping(false);
+        })
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            console.log(`[useChatMessages] Subscribed to presence for conversation ${conversationId}`);
+            try {
+              await presCh.track({ isTyping: false });
+            } catch (error) {
+              console.warn("Error tracking initial presence:", error);
+            }
+          } else if (status === "CHANNEL_ERROR") {
+            console.error(`[useChatMessages] Presence channel error for conversation ${conversationId}`);
+          } else if (status === "CLOSED") {
+            console.log(`[useChatMessages] Presence channel closed for conversation ${conversationId}`);
+          }
+        });
+      
+      channelRef.current = presCh;
+    });
+    
+    return () => {
+      cleanup();
       if (typingTimeout.current) {
         clearTimeout(typingTimeout.current);
         typingTimeout.current = null;

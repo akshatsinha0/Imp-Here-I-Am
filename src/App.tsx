@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import ChatShell from "@/components/ChatShell";
 import ChatView from "./pages/ChatView";
+import GroupChatView from "./pages/GroupChatView";
 import Settings from "./pages/Settings";
 import Verify from "./pages/Verify";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -29,6 +30,7 @@ const App = () => (
             <Route element={<ChatShell />}>
               <Route path="/" element={<Index />} />
               <Route path="/chat/:id" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
+              <Route path="/group/:id" element={<ErrorBoundary><GroupChatView /></ErrorBoundary>} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             {}

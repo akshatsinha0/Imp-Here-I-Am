@@ -101,26 +101,33 @@ const MessageList: React.FC<MessageListProps> = ({
     }
     return document.querySelector('.mobile-message-list') as HTMLElement | null;
   }
+  function scrollToMatch(index: number){
+    const el = document.querySelector(`[data-match-index=\"${index}\"]`) as HTMLElement | null;
+    if (!el) return;
+    const container = getScrollParent(el);
+    if (container) {
+      const elRect = el.getBoundingClientRect();
+      const cRect = container.getBoundingClientRect();
+      const outTop = elRect.top < cRect.top + 8;
+      const outBottom = elRect.bottom > cRect.bottom - 8;
+      if (outTop || outBottom) {
+        const targetTop = (elRect.top - cRect.top) + container.scrollTop - (container.clientHeight/2 - elRect.height/2);
+        container.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+      }
+    } else if ('scrollIntoView' in el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
   React.useEffect(() => {
     if (typeof activeMatchIndex === 'number') {
-      const el = document.querySelector(`[data-match-index=\"${activeMatchIndex}\"]`) as HTMLElement | null;
-      if (el) {
-        const container = getScrollParent(el);
-        if (container) {
-          const elRect = el.getBoundingClientRect();
-          const cRect = container.getBoundingClientRect();
-          const outTop = elRect.top < cRect.top + 8;
-          const outBottom = elRect.bottom > cRect.bottom - 8;
-          if (outTop || outBottom) {
-            const targetTop = (elRect.top - cRect.top) + container.scrollTop - (container.clientHeight/2 - elRect.height/2);
-            container.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
-          }
-        } else if ('scrollIntoView' in el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+      requestAnimationFrame(()=> scrollToMatch(activeMatchIndex));
     }
   }, [activeMatchIndex, totalMatches]);
+  React.useLayoutEffect(()=>{
+    if (term && totalMatches>0) {
+      requestAnimationFrame(()=> scrollToMatch(0));
+    }
+  }, [term, totalMatches]);
   let runningIndex = 0;
   function highlight(content: string) {
     if (!regex) return <span className="whitespace-pre-line" style={{ wordBreak: "break-word" }}>{content}</span>;

@@ -91,11 +91,21 @@ const MessageList: React.FC<MessageListProps> = ({
   React.useEffect(() => {
     onMatchesChange?.(totalMatches);
   }, [totalMatches, onMatchesChange]);
+  function getScrollParent(node: HTMLElement | null): HTMLElement | null {
+    let p: HTMLElement | null = node?.parentElement || null;
+    while (p && p !== document.body) {
+      const style = window.getComputedStyle(p);
+      const canScroll = (p.scrollHeight > p.clientHeight) && (/(auto|scroll)/).test(style.overflowY);
+      if (canScroll) return p;
+      p = p.parentElement;
+    }
+    return document.querySelector('.mobile-message-list') as HTMLElement | null;
+  }
   React.useEffect(() => {
     if (typeof activeMatchIndex === 'number') {
-      const el = document.querySelector(`[data-match-index="${activeMatchIndex}"]`) as HTMLElement | null;
+      const el = document.querySelector(`[data-match-index=\"${activeMatchIndex}\"]`) as HTMLElement | null;
       if (el) {
-        const container = document.querySelector('.mobile-message-list') as HTMLElement | null;
+        const container = getScrollParent(el);
         if (container) {
           const elRect = el.getBoundingClientRect();
           const cRect = container.getBoundingClientRect();

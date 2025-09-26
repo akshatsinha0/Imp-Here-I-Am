@@ -10,7 +10,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
   try {
-    // Provide STUN by default. Add TURN if configured.
     const iceServers: any[] = [
       { urls: "stun:stun.l.google.com:19302" },
     ];

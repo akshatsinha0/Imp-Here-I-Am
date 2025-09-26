@@ -44,6 +44,7 @@ const ChatView = () => {
   const [activeMatch,setActiveMatch]=useState(0);
   const [profileModal,setProfileModal]=useState<{open:boolean,profile:any|null}>({open:false,profile:null});
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastToastTermRef = useRef<string>("");
 
   // Helper function to check if message can be edited (within 2 minutes)
   const canEditMessage = (messageCreatedAt: string, senderId: string) => {
@@ -239,7 +240,12 @@ const ChatView = () => {
     localStorage.setItem(`search:conv:${conversationId}`, searchTerm);
   },[conversationId,searchTerm]);
   useEffect(()=>{ if(searchOpen) searchInputRef.current?.focus() },[searchOpen]);
-  useEffect(()=>{ if(searchTerm.trim()&&matchCount===0){ toast({ title: "entered result not found!!" }) } },[searchTerm,matchCount]);
+  useEffect(()=>{
+    const term = searchTerm.trim();
+    if(!searchOpen){ return }
+    if(!term){ lastToastTermRef.current=""; return }
+    if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term }
+  },[searchOpen,searchTerm,matchCount]);
   if (!conversationId) {
     return (
       <div className="flex flex-col h-full flex-1 items-center justify-center p-mobile">

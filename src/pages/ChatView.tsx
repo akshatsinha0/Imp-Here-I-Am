@@ -10,7 +10,7 @@ import { Trash2, ArrowLeft, Users, MessageCircle, Video as VideoIcon, Search } f
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { useSoundManager } from "@/utils/SoundManager";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import VideoCallDialog from "@/components/video/VideoCallDialog";
 import ViewUserProfileModal from "@/components/ViewUserProfileModal";
 
@@ -225,7 +225,7 @@ const ChatView = () => {
   const handleReaction = async (messageId: string, emoji: string) => {
     try { await chat.toggleReaction(messageId, emoji) } catch (e) {}
   };
-  React.useEffect(()=>{
+  useEffect(()=>{
     if(!conversationId) return;
     const saved = localStorage.getItem(`draft:conv:${conversationId}`) || "";
     chat.setInput(saved);
@@ -233,10 +233,11 @@ const ChatView = () => {
     setSearchTerm(s);
     setActiveMatch(0);
   },[conversationId]);
-  React.useEffect(()=>{
+  useEffect(()=>{
     if(!conversationId) return;
     localStorage.setItem(`search:conv:${conversationId}`, searchTerm);
   },[conversationId,searchTerm]);
+  useEffect(()=>{ if(searchTerm.trim()&&matchCount===0){ toast({ title: "entered result not found!!" }) } },[searchTerm,matchCount]);
   if (!conversationId) {
     return (
       <div className="flex flex-col h-full flex-1 items-center justify-center p-mobile">

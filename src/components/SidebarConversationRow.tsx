@@ -146,7 +146,7 @@ export default function SidebarConversationRow({
               {isPinned ? "Unpin Chat" : "Pin Chat"}
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="flex items-center text-red-600 focus:bg-red-50"
+              className="flex items-center text-red-600 hover:bg-transparent focus:bg-transparent data-[highlighted]:bg-transparent data-[highlighted]:text-red-700"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDeleteConversation(c.id);

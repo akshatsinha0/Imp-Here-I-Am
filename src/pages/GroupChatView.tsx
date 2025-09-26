@@ -26,6 +26,7 @@ const GroupChatView=()=>{
   useEffect(()=>{ async function fetchName(){ if(!groupId) return; const { data }=await supabase.from("groups").select("*").eq("id",groupId).maybeSingle(); if(data?.name){ setGroupName(data.name) } } fetchName() },[groupId]);
   useEffect(()=>{ if(!groupId) return; const d=localStorage.getItem(`draft:group:${groupId}`)||""; chat.setInput(d); const s=localStorage.getItem(`search:group:${groupId}`)||""; setSearchTerm(s); setActiveMatch(0) },[groupId]);
   useEffect(()=>{ if(!groupId) return; localStorage.setItem(`search:group:${groupId}`, searchTerm) },[groupId,searchTerm]);
+  useEffect(()=>{ if(searchTerm.trim()&&matchCount===0){ toast({ title: "entered result not found!!" }) } },[searchTerm,matchCount]);
   if(!groupId){ return <div className="flex items-center justify-center h-full">Select a group</div> }
   return (
     <div className="flex flex-col h-full flex-1 w-full max-w-2xl mx-auto bg-gradient-to-br from-background to-accent rounded-none sm:rounded-lg border relative">

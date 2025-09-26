@@ -114,7 +114,7 @@ const MessageList: React.FC<MessageListProps> = ({
       const idx = runningIndex;
       runningIndex += 1;
       parts.push(
-        <span key={`h-${start}-${end}-${idx}`} data-match-index={idx} className="bg-yellow-200/80 text-black rounded px-1">
+        <span key={`h-${start}-${end}-${idx}`} data-match-index={idx} className={`bg-yellow-200/80 text-black rounded px-1 inline-block ${idx===activeMatchIndex?"scale-110 ring-2 ring-yellow-400 transition-transform duration-150":""}`}>
           {content.slice(start, end)}
         </span>
       );

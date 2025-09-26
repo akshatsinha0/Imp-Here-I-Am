@@ -64,6 +64,13 @@ export default function SidebarConversationRow({
   const otherParticipantId =
     c.participant_1 === userId ? c.participant_2 : c.participant_1;
   const otherProfile = userProfiles[otherParticipantId];
+  const [draft,setDraft]=React.useState("");
+  React.useEffect(()=>{
+    const key=`draft:conv:${c.id}`; const load=()=>setDraft(localStorage.getItem(key)||""); load();
+    const listener=(e:StorageEvent)=>{ if(e.key===key) load() };
+    window.addEventListener('storage',listener);
+    return ()=>window.removeEventListener('storage',listener);
+  },[c.id]);
   return (
     <div className="relative w-full">
       <button
@@ -99,6 +106,9 @@ export default function SidebarConversationRow({
           <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-xs font-bold text-muted-foreground border">
             {otherParticipantId ? otherParticipantId.slice(0, 4) : "??"}
           </div>
+        )}
+        {draft && (
+          <span className="ml-2 text-xs text-red-600 truncate max-w-[140px]">{draft}</span>
         )}
         {isPinned && (
           <Pin className="w-4 h-4 text-primary ml-1" fill="currentColor" />

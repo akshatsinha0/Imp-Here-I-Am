@@ -14,6 +14,8 @@ interface SidebarGroupRowProps{
 
 export default function SidebarGroupRow({ group,unread,isActive,setActiveGroup,setUnreadCounts,onGroupClick }:SidebarGroupRowProps){
   const navigate=useNavigate();
+  const [draft,setDraft]=React.useState("");
+  React.useEffect(()=>{ const key=`draft:group:${group.id}`; const load=()=>setDraft(localStorage.getItem(key)||""); load(); const listener=(e:StorageEvent)=>{ if(e.key===key) load() }; window.addEventListener('storage',listener); return ()=>window.removeEventListener('storage',listener) },[group.id]);
   return (
     <div className="relative w-full">
       <button
@@ -29,7 +31,8 @@ export default function SidebarGroupRow({ group,unread,isActive,setActiveGroup,s
         <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
           {group.name.slice(0,2).toUpperCase()}
         </div>
-        <div className="truncate text-sm">{group.name}</div>
+        <div className="truncate text-sm flex-1 text-left">{group.name}</div>
+        {draft&&(<span className="ml-2 text-xs text-red-600 truncate max-w-[120px]">{draft}</span>)}
         {unread>0&&(
           <span className="ml-auto px-2 py-0.5 bg-primary text-white text-[10px] rounded-full font-bold shadow">{unread}</span>
         )}

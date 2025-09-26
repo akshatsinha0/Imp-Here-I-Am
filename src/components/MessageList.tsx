@@ -56,7 +56,9 @@ interface MessageListProps {
   onDelete?: (messageId: string) => void;
   onForward?: (messageId: string) => void;
   onCopy?: (messageId: string) => void;
-  onViewOnceOpen?: (messageId: string) => void;
+  searchTerm?: string;
+  activeMatchIndex?: number;
+  onMatchesChange?: (count: number) => void;
 }
 
 const MessageList: React.FC<MessageListProps> = ({
@@ -68,8 +70,61 @@ const MessageList: React.FC<MessageListProps> = ({
   onDelete,
   onForward,
   onCopy,
+  searchTerm,
+  activeMatchIndex = 0,
+  onMatchesChange,
 }) => {
   let lastDate: Date | null = null;
+  const term = (searchTerm || "").trim();
+  const flags = "gi";
+  const regex = term ? new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags) : null;
+  const totalMatches = React.useMemo(() => {
+    if (!regex) return 0;
+    let count = 0;
+    for (const m of messages) {
+      if (m.message_type !== "text" || !m.content) continue;
+      const matches = m.content.match(regex);
+      if (matches) count += matches.length;
+    }
+    return count;
+  }, [messages, term]);
+  React.useEffect(() => {
+    onMatchesChange?.(totalMatches);
+  }, [totalMatches, onMatchesChange]);
+  React.useEffect(() => {
+    if (typeof activeMatchIndex === 'number') {
+      const el = document.querySelector(`[data-match-index="${activeMatchIndex}"]`);
+      if (el && 'scrollIntoView' in el) {
+        (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [activeMatchIndex, totalMatches]);
+  let runningIndex = 0;
+  function highlight(content: string) {
+    if (!regex) return <span className="whitespace-pre-line" style={{ wordBreak: "break-word" }}>{content}</span>;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(content)) !== null) {
+      const start = m.index;
+      const end = start + m[0].length;
+      if (start > lastIndex) {
+        parts.push(content.slice(lastIndex, start));
+      }
+      const idx = runningIndex;
+      runningIndex += 1;
+      parts.push(
+        <span key={`h-${start}-${end}-${idx}`} data-match-index={idx} className="bg-yellow-200/80 text-black rounded px-1">
+          {content.slice(start, end)}
+        </span>
+      );
+      lastIndex = end;
+    }
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+    return <span className="whitespace-pre-line" style={{ wordBreak: "break-word" }}>{parts}</span>;
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -131,14 +186,13 @@ const MessageList: React.FC<MessageListProps> = ({
                             : "rounded-bl-xl rounded-tl-sm"}`}
                 >
                   <span className="whitespace-pre-line" style={{ wordBreak: "break-word" }}>
-                    {msg.message_type === "text" && msg.content}
-                    {["voice_note", "file"].includes(msg.message_type || "") && (
+                    {msg.message_type === "text" && highlight(msg.content)}
+                    {["voice_note", "file", "view_once"].includes(msg.message_type || "") && (
                       <MessageFilePreview
                         fileUrl={msg.file_url}
                         fileName={msg.file_name}
                         fileMime={msg.file_mime}
                         type={msg.message_type}
-                        onViewOnceOpen={() => onViewOnceOpen?.(msg.id)}
                       />
                     )}
                   </span>
@@ -162,8 +216,6 @@ const MessageList: React.FC<MessageListProps> = ({
       />
     </div>
 
-    {/* Message Actions */}
-                {/* Message Actions */}
                 <div className="absolute -top-8 right-0">
                   <MessageActions
                     messageId={msg.id}

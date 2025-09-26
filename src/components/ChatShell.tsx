@@ -485,6 +485,7 @@ export default function ChatShell() {
             <RightSidebarUsers onConversationStarted={handleConversationStarted} />
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
 
       <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
         <DialogContent className="max-w-lg">
@@ -507,9 +508,8 @@ export default function ChatShell() {
           </div>
         </DialogContent>
       </Dialog>
-    </>
-  );
-}
+
+      <CreateGroupDialog
         open={createGroupOpen}
         onOpenChange={setCreateGroupOpen}
         candidates={Object.values(userProfiles)}

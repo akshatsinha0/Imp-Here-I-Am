@@ -8,7 +8,7 @@ import { useEffect,useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/hooks/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
 import VideoCallDialog from "@/components/video/VideoCallDialog";
 
 const GroupChatView=()=>{
@@ -27,11 +27,12 @@ const GroupChatView=()=>{
   const lastToastTermRef = useRef<string>("");
   const searchOpenedAtRef = useRef<number>(0);
   const lastEditAtRef = useRef<number>(0);
+  const { dismiss } = useToast();
   useEffect(()=>{ async function fetchName(){ if(!groupId) return; const { data }=await supabase.from("groups").select("*").eq("id",groupId).maybeSingle(); if(data?.name){ setGroupName(data.name) } } fetchName() },[groupId]);
   useEffect(()=>{ if(!groupId) return; const d=localStorage.getItem(`draft:group:${groupId}`)||""; chat.setInput(d); const s=localStorage.getItem(`search:group:${groupId}`)||""; setSearchTerm(s); setActiveMatch(0) },[groupId]);
   useEffect(()=>{ if(!groupId) return; localStorage.setItem(`search:group:${groupId}`, searchTerm) },[groupId,searchTerm]);
   useEffect(()=>{ if(searchOpen){ searchOpenedAtRef.current=Date.now(); searchInputRef.current?.focus() } },[searchOpen]);
-  useEffect(()=>{ if(!searchOpen) return; const term=searchTerm.trim(); if(!term){ lastToastTermRef.current=""; return } const t=setTimeout(()=>{ if(lastEditAtRef.current<=searchOpenedAtRef.current) return; if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term } },350); return ()=>clearTimeout(t) },[searchOpen,searchTerm,matchCount]);
+  useEffect(()=>{ if(!searchOpen) return; const term=searchTerm.trim(); if(!term){ lastToastTermRef.current=""; dismiss(); return } const t=setTimeout(()=>{ if(lastEditAtRef.current<=searchOpenedAtRef.current) return; if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term } },350); return ()=>clearTimeout(t) },[searchOpen,searchTerm,matchCount]);
   if(!groupId){ return <div className="flex items-center justify-center h-full">Select a group</div> }
   return (
     <div className="flex flex-col h-full flex-1 w-full max-w-2xl mx-auto bg-gradient-to-br from-background to-accent rounded-none sm:rounded-lg border relative">

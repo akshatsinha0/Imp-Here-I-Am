@@ -8,7 +8,7 @@ import HamburgerMenu from "@/components/HamburgerMenu";
 import { Button } from "@/components/ui/button";
 import { Trash2, ArrowLeft, Users, MessageCircle, Video as VideoIcon, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { toast } from "@/hooks/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
 import { useSoundManager } from "@/utils/SoundManager";
 import { useState, useEffect, useRef } from "react";
 import VideoCallDialog from "@/components/video/VideoCallDialog";
@@ -47,6 +47,7 @@ const ChatView = () => {
   const lastToastTermRef = useRef<string>("");
   const searchOpenedAtRef = useRef<number>(0);
   const lastEditAtRef = useRef<number>(0);
+  const { dismiss } = useToast();
 
   // Helper function to check if message can be edited (within 2 minutes)
   const canEditMessage = (messageCreatedAt: string, senderId: string) => {
@@ -245,7 +246,7 @@ const ChatView = () => {
   useEffect(()=>{
     if(!searchOpen) return;
     const term = searchTerm.trim();
-    if(!term){ lastToastTermRef.current=""; return }
+    if(!term){ lastToastTermRef.current=""; dismiss(); return }
     const timer = setTimeout(()=>{
       if(lastEditAtRef.current<=searchOpenedAtRef.current) return;
       if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term }

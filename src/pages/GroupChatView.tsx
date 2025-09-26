@@ -48,7 +48,7 @@ const GroupChatView=()=>{
       {searchOpen && (
         <div className="px-2 sm:px-4 py-2 bg-muted/40 border-b">
           <div className="flex items-center gap-2">
-            <input value={searchTerm} onChange={e=>{ setSearchTerm(e.target.value); setActiveMatch(0) }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
+            <input value={searchTerm} onChange={e=>{ setSearchTerm(e.target.value); setActiveMatch(0) }} onKeyDown={(e)=>{ if(matchCount>0 && (e.key==='ArrowDown'||(e.key==='Enter'&&!e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p+1)%Math.max(matchCount,1)) } else if (matchCount>0 && (e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1)) } }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
             <div className="text-sm text-muted-foreground whitespace-nowrap">{matchCount>0?`${activeMatch+1}/${matchCount}`:"0/0"}</div>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↑</button>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p+1)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↓</button>

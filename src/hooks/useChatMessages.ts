@@ -37,6 +37,7 @@ export interface Message {
   }>;
   reply_to?: Message | null;
 }
+interface ReactionRow { message_id:string; user_id:string; emoji:string }
 const TYPING_TIMEOUT_MS = 2000;
 
 
@@ -58,6 +59,7 @@ export function useChatMessages(conversationId?: string) {
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [scheduledTime, setScheduledTime] = useState<string | null>(null);
+  const reactionSubRef = useRef<any>(null);
   useEffect(() => {
     if (!conversationId || !user?.id) return;
     supabase
@@ -120,41 +122,49 @@ export function useChatMessages(conversationId?: string) {
           .eq("user_id", user.id)
           .eq("conversation_id", conversationId)
           .maybeSingle();
-          
         let cutoff = clearData?.cleared_at ?? null;
         setClearedAt(cutoff);
-        
         let query = supabase
           .from("messages")
           .select("*")
           .eq("conversation_id", conversationId)
           .order("created_at", { ascending: true });
-          
         if (cutoff) query = query.gt("created_at", cutoff);
-        
         const { data: msgs, error } = await query;
-        
         if (error) {
-          console.error("Error fetching messages:", error);
           setMessages([]);
         } else {
-          const messagesWithEmptyReactions = (msgs || []).map((msg: any) => ({
-            ...msg,
-            reactions: []
-          }));
-          setMessages(messagesWithEmptyReactions as Message[]);
+          const base = (msgs||[]) as Message[];
+          const ids = base.map(m=>m.id);
+          let withReacts = base.map(m=>({ ...m, reactions: [] as any }));
+          if (ids.length>0) {
+            const { data: rx } = await supabase
+              .from("message_reactions")
+              .select("message_id,user_id,emoji")
+              .in("message_id", ids);
+            const map: Record<string,Record<string,Set<string>>> = {};
+            (rx||[]).forEach((r:any)=>{ if(!map[r.message_id]) map[r.message_id]={}; if(!map[r.message_id][r.emoji]) map[r.message_id][r.emoji]=new Set(); map[r.message_id][r.emoji].add(r.user_id) });
+            const userIds = Array.from(new Set((rx||[]).map((r:any)=>r.user_id)));
+            let nameMap: Record<string,string> = {};
+            if (userIds.length>0) {
+              const { data: ups } = await supabase.from("user_profiles").select("id,display_name").in("id", userIds);
+              (ups||[]).forEach((u:any)=>{ nameMap[u.id]=u.display_name });
+            }
+            withReacts = withReacts.map(m=>{
+              const rm = map[m.id]||{}; const arr: any[] = [];
+              Object.keys(rm).forEach(emoji=>{
+                const users = Array.from(rm[emoji]).map(uid=>({ id:uid, display_name:nameMap[uid]||uid }));
+                arr.push({ emoji, users });
+              });
+              return { ...m, reactions: arr };
+            });
+          }
+          setMessages(withReacts);
         }
-        
-        if (cutoff && (!msgs || msgs.length === 0)) {
-          setIsCleared(true);
-        } else {
-          setIsCleared(false);
-        }
-        
+        if (cutoff && (!msgs || msgs.length === 0)) setIsCleared(true); else setIsCleared(false);
         setLoading(false);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       } catch (error) {
-        console.error("Error in fetchClearedAndMessages:", error);
         setLoading(false);
         setMessages([]);
       }
@@ -241,7 +251,22 @@ export function useChatMessages(conversationId?: string) {
       cleanup();
     };
   }, [conversationId, user?.id, clearedAt, playReceiveSound]);
+  useEffect(()=>{
+    if(!conversationId||!user?.id) return;
+    const mark=async()=>{
+      setMessages(prev=>{
+        const toRead=prev.filter(m=>m.sender_id!==user.id&&!(m.readers||[]).includes(user.id));
+        toRead.forEach(async m=>{
+          const next=[...(m.readers||[]),user.id];
+          await supabase.from("messages").update({ readers: next }).eq("id",m.id);
+        });
+        return prev.map(m=> m.sender_id!==user.id&&!(m.readers||[]).includes(user.id)?{...m,readers:[...(m.readers||[]),user.id]}:m);
+      });
+    };
+    mark();
+  },[conversationId,user?.id]);
   const channelRef = useRef<any>(null);
+  const reactChannelRef = useRef<any>(null);
   useEffect(() => {
     if (!conversationId || !user?.id) return;
     
@@ -337,6 +362,28 @@ export function useChatMessages(conversationId?: string) {
       sendMessage();
     }
   };
+  const toggleReaction=async(messageId:string,emoji:string)=>{
+    if(!user?.id) return;
+    const msg=messages.find(m=>m.id===messageId);
+    const has=msg?.reactions?.find(r=>r.emoji===emoji)?.users.some(u=>u.id===user.id);
+    if(has){
+      await supabase.from("message_reactions").delete().eq("message_id",messageId).eq("user_id",user.id).eq("emoji",emoji);
+      setMessages(prev=> prev.map(m=>{
+        if(m.id!==messageId) return m;
+        const rx=(m.reactions||[]).map(r=> r.emoji===emoji?{...r,users:r.users.filter(u=>u.id!==user.id)}:r).filter(r=>r.users.length>0);
+        return { ...m, reactions: rx };
+      }));
+    } else {
+      await supabase.from("message_reactions").insert([{ message_id:messageId, user_id:user.id, emoji }]);
+      setMessages(prev=> prev.map(m=>{
+        if(m.id!==messageId) return m;
+        const rx=(m.reactions||[]);
+        const idx=rx.findIndex(r=>r.emoji===emoji);
+        if(idx===-1) rx.push({ emoji, users:[{ id:user.id, display_name: user.email||user.id }] }); else rx[idx]={...rx[idx],users:[...rx[idx].users,{ id:user.id, display_name: user.email||user.id }]};
+        return { ...m, reactions: rx };
+      }));
+    }
+  };
   async function uploadToSupabaseStorage(file: File): Promise<{ url?: string; fileName?: string; mime?: string }> {
     setUploadingFile(true);
     const filePath = `${conversationId}/${Date.now()}_${file.name}`;
@@ -384,17 +431,12 @@ export function useChatMessages(conversationId?: string) {
       file_mime,
       readers: [user.id],
     };
-    
-    // Add reply_to_id if replying
     if (replyToMessage) {
       messageData.reply_to_id = replyToMessage.id;
     }
-    
-    // Add scheduled_at if scheduling
     if (scheduledTime) {
       messageData.scheduled_at = scheduledTime;
     }
-    
     const { data, error } = await supabase
       .from("messages")
       .insert([messageData])
@@ -441,28 +483,6 @@ export function useChatMessages(conversationId?: string) {
     setIsCleared(true);
     toast({ title: "Chat history cleared for you" });
   };
-  useEffect(() => {
-    if (!messages.length || !user?.id) return;
-    const unreadMsgs = messages.filter(
-      (msg) => msg.sender_id !== user.id && (!msg.readers || !msg.readers.includes(user.id))
-    );
-    if (!unreadMsgs.length) return;
-    unreadMsgs.forEach(async (msg) => {
-      const currentReaders = (msg.readers ?? []).slice();
-      if (!currentReaders.includes(user.id)) {
-        const newReaders = [...currentReaders, user.id];
-        await supabase
-          .from("messages")
-          .update({ readers: newReaders })
-          .eq("id", msg.id);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msg.id ? { ...m, readers: newReaders } : m
-          )
-        );
-      }
-    });
-  }, [messages, user?.id]);
   if (!conversationId) {
     return {
       user: null,
@@ -483,6 +503,7 @@ export function useChatMessages(conversationId?: string) {
       partnerProfile: null,
       clearChat: async () => {},
       isCleared: false,
+      toggleReaction: async()=>{},
     };
   }
 
@@ -505,5 +526,6 @@ export function useChatMessages(conversationId?: string) {
     partnerProfile,
     clearChat,
     isCleared,
+    toggleReaction,
   };
 }

@@ -3,12 +3,13 @@ import { useGroupMessages } from "@/hooks/useGroupMessages";
 import MessageList from "@/components/MessageList";
 import MessageComposer from "@/components/MessageComposer";
 import { Button } from "@/components/ui/button";
-import { Users,ArrowLeft,Edit2 } from "lucide-react";
+import { Users,ArrowLeft,Edit2,Video as VideoIcon } from "lucide-react";
 import { useEffect,useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
+import VideoCallDialog from "@/components/video/VideoCallDialog";
 
 const GroupChatView=()=>{
   const { id:groupId }=useParams<{id:string}>();
@@ -17,6 +18,7 @@ const GroupChatView=()=>{
   const [groupName,setGroupName]=useState("Group");
   const [renameOpen,setRenameOpen]=useState(false);
   const [newName,setNewName]=useState("");
+  const [callOpen,setCallOpen]=useState(false);
   useEffect(()=>{ async function fetchName(){ if(!groupId) return; const { data }=await supabase.from("groups").select("*").eq("id",groupId).maybeSingle(); if(data?.name){ setGroupName(data.name) } } fetchName() },[groupId]);
   if(!groupId){ return <div className="flex items-center justify-center h-full">Select a group</div> }
   return (
@@ -27,6 +29,9 @@ const GroupChatView=()=>{
           <span className="text-base sm:text-lg md:text-xl font-medium truncate">{groupName}</span>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button size="icon" variant="ghost" onClick={()=> setCallOpen(true)} title="Start video call">
+            <VideoIcon className="w-4 h-4"/>
+          </Button>
           <Button size="icon" variant="ghost" onClick={()=>{ setNewName(groupName); setRenameOpen(true) }} title="Rename">
             <Edit2 className="w-4 h-4"/>
           </Button>
@@ -49,6 +54,14 @@ const GroupChatView=()=>{
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VideoCallDialog
+        open={callOpen}
+        onOpenChange={setCallOpen}
+        roomId={`group-${groupId}`}
+        currentUserId={chat.user?.id}
+        title={groupName}
+      />
     </div>
   );
 };

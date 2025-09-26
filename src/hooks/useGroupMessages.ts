@@ -39,6 +39,15 @@ export function useGroupMessages(groupId?:string){
       if(error){ setMessages([]) } else { setMessages((data||[]) as GroupMessage[]) }
       setLoading(false);
       setTimeout(()=>messagesEndRef.current?.scrollIntoView({ behavior:"smooth" }),100);
+      setTimeout(async()=>{
+        setMessages(prev=>{
+          prev.filter(m=>m.sender_id!==user.id&&!(m.readers||[]).includes(user.id)).forEach(async m=>{
+            const next=[...(m.readers||[]),user.id];
+            await supabase.from("group_messages").update({ readers: next }).eq("id",m.id);
+          });
+          return prev.map(m=> m.sender_id!==user.id&&!(m.readers||[]).includes(user.id)?{...m,readers:[...(m.readers||[]),user.id]}:m);
+        });
+      },200);
     };
     fetchMessages();
   },[groupId,user?.id]);
@@ -51,8 +60,19 @@ export function useGroupMessages(groupId?:string){
         .channel(`group-msg-${groupId}-${user.id}-${Date.now()}`)
         .on("postgres_changes",{ event:"INSERT",schema:"public",table:"group_messages",filter:`group_id=eq.${groupId}` },payload=>{
           const msg=payload.new as GroupMessage;
-          setMessages(prev=> prev.some(m=>m.id===msg.id)?prev:[...prev,msg]);
-          setTimeout(()=>messagesEndRef.current?.scrollIntoView({ behavior:"smooth" }),100);
+          setMessages(prev=>{
+            if(prev.some(m=>m.id===msg.id)) return prev;
+            const next=[...prev,msg];
+            return next;
+          });
+          setTimeout(async()=>{
+            if(msg.sender_id!==user.id){
+              const next=[...(msg.readers||[]),user.id];
+              await supabase.from("group_messages").update({ readers: next }).eq("id",msg.id);
+              setMessages(prev=> prev.map(m=> m.id===msg.id?{...m,readers:next}:m));
+            }
+            messagesEndRef.current?.scrollIntoView({ behavior:"smooth" });
+          },100);
         })
         .on("postgres_changes",{ event:"UPDATE",schema:"public",table:"group_messages",filter:`group_id=eq.${groupId}` },payload=>{
           const msg=payload.new as GroupMessage;

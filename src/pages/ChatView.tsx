@@ -6,11 +6,12 @@ import ForwardMessageDialog from "@/components/ForwardMessageDialog";
 import SoundToggle from "@/components/SoundToggle";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import { Button } from "@/components/ui/button";
-import { Trash2, ArrowLeft, Users, MessageCircle } from "lucide-react";
+import { Trash2, ArrowLeft, Users, MessageCircle, Video as VideoIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { useSoundManager } from "@/utils/SoundManager";
 import { useState } from "react";
+import VideoCallDialog from "@/components/video/VideoCallDialog";
 
 interface OutletContext {
   toggleLeftSidebar: () => void;
@@ -35,6 +36,7 @@ const ChatView = () => {
     messageId: "",
   });
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [callOpen, setCallOpen] = useState(false);
 
   // Helper function to check if message can be edited (within 2 minutes)
   const canEditMessage = (messageCreatedAt: string, senderId: string) => {
@@ -215,10 +217,7 @@ const ChatView = () => {
   };
 
   const handleReaction = async (messageId: string, emoji: string) => {
-    toast({
-      title: "Reactions coming soon",
-      description: `${emoji} reaction will be added in the next update`,
-    });
+    try { await chat.toggleReaction(messageId, emoji) } catch (e) {}
   };
   if (!conversationId) {
     return (
@@ -276,6 +275,15 @@ const ChatView = () => {
             <Users className="w-5 h-5" />
           </button>
           <SoundToggle />
+          <Button
+            size="icon"
+            variant="ghost"
+            title="Start video call"
+            onClick={() => setCallOpen(true)}
+            className="mobile-touch-target shrink-0 hover:bg-white/10"
+          >
+            <VideoIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+          </Button>
           <Button
             size="icon"
             variant="ghost"
@@ -344,6 +352,14 @@ const ChatView = () => {
         onOpenChange={(open) => setForwardDialog(prev => ({ ...prev, open }))}
         messageContent={forwardDialog.messageContent}
         messageId={forwardDialog.messageId}
+      />
+
+      <VideoCallDialog
+        open={callOpen}
+        onOpenChange={setCallOpen}
+        roomId={`conv-${conversationId}`}
+        currentUserId={chat.user?.id}
+        title={partnerName}
       />
     </div>
   );

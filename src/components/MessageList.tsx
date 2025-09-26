@@ -93,9 +93,21 @@ const MessageList: React.FC<MessageListProps> = ({
   }, [totalMatches, onMatchesChange]);
   React.useEffect(() => {
     if (typeof activeMatchIndex === 'number') {
-      const el = document.querySelector(`[data-match-index="${activeMatchIndex}"]`);
-      if (el && 'scrollIntoView' in el) {
-        (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const el = document.querySelector(`[data-match-index="${activeMatchIndex}"]`) as HTMLElement | null;
+      if (el) {
+        const container = document.querySelector('.mobile-message-list') as HTMLElement | null;
+        if (container) {
+          const elRect = el.getBoundingClientRect();
+          const cRect = container.getBoundingClientRect();
+          const outTop = elRect.top < cRect.top + 8;
+          const outBottom = elRect.bottom > cRect.bottom - 8;
+          if (outTop || outBottom) {
+            const targetTop = (elRect.top - cRect.top) + container.scrollTop - (container.clientHeight/2 - elRect.height/2);
+            container.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+          }
+        } else if ('scrollIntoView' in el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
     }
   }, [activeMatchIndex, totalMatches]);

@@ -13,6 +13,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun, User, Users, CircleDashed, Archive } from "lucide-react";
 import RightSidebarUsers from "./RightSidebarUsers";
 import ErrorBoundary from "./ErrorBoundary";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ResizablePanelGroup,
   ResizablePanel,

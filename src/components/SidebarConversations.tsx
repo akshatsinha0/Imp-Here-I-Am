@@ -31,6 +31,8 @@ export default function SidebarConversations({
   onDeleteConversation,
   pinnedChats = {},
   onPinConversation,
+  archivedChats = {},
+  onArchiveConversation,
   onConversationClick,
 }: {
   conversations: Conversation[];
@@ -42,6 +44,8 @@ export default function SidebarConversations({
   onDeleteConversation: (id: string) => void;
   pinnedChats?: Record<string, string>;
   onPinConversation?: (id: string, pin: boolean) => void;
+  archivedChats?: Record<string, true>;
+  onArchiveConversation?: (id: string, archive: boolean) => void;
   onConversationClick?: (id: string) => void;
 }) {
   const location = useLocation();
@@ -83,12 +87,14 @@ export default function SidebarConversations({
             unreadCounts={unreadCounts}
             userId={userId}
             isPinned={!!pinnedChats?.[c.id]}
+            isArchived={!!archivedChats?.[c.id]}
             isActive={currentChatId === c.id}
             setActiveConversation={setActiveConversation}
             setUnreadCounts={setUnreadCounts}
             onDeleteConversation={onDeleteConversation}
             pinnedChats={pinnedChats}
             onPinConversation={onPinConversation}
+            onArchiveConversation={onArchiveConversation}
             currentChatId={currentChatId}
             onConversationClick={onConversationClick}
           />

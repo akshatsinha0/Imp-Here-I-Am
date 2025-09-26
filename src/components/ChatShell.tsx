@@ -10,7 +10,7 @@ import CreateGroupDialog from "./CreateGroupDialog";
 import SidebarProfileArea from "./SidebarProfileArea";
 import HamburgerMenu from "./HamburgerMenu";
 import { useTheme } from "next-themes";
-import { Moon, Sun, User, Users, CircleDashed } from "lucide-react";
+import { Moon, Sun, User, Users, CircleDashed, Archive } from "lucide-react";
 import RightSidebarUsers from "./RightSidebarUsers";
 import ErrorBoundary from "./ErrorBoundary";
 import {
@@ -28,6 +28,8 @@ export default function ChatShell() {
   const [myClearedChats, setMyClearedChats] = useState<Record<string, true>>({});
   const [clearedChatsLoaded, setClearedChatsLoaded] = useState(false);
   const [pinnedChats, setPinnedChats] = useState<Record<string, string>>({});
+  const [archivedChats, setArchivedChats] = useState<Record<string,true>>({});
+  const [archivedOpen,setArchivedOpen]=useState(false);
   const [leftSidebarOpen,setLeftSidebarOpen]=useState(false);
   const [rightSidebarOpen,setRightSidebarOpen]=useState(false);
   const [groups,setGroups]=useState<Group[]>([]);
@@ -76,6 +78,14 @@ export default function ChatShell() {
     }
     fetchPinned();
   }, [user?.id]);
+  useEffect(()=>{
+    if(!user?.id) return;
+    async function fetchArchived(){
+      const { data }=await supabase.from("archived_chats").select("conversation_id").eq("user_id",user.id);
+      const m:Record<string,true>={}; (data||[]).forEach(r=>m[r.conversation_id]=true); setArchivedChats(m);
+    }
+    fetchArchived();
+  },[user?.id]);
   const handlePinConversation = async (conversationId: string, pin: boolean) => {
     if (!user?.id) return;
     if (pin) {
@@ -287,6 +297,11 @@ export default function ChatShell() {
     navigate(`/chat/${conversationId}`);
     closeSidebars();
   };
+  const handleArchiveConversation=async(id:string,archive:boolean)=>{
+    if(!user?.id) return;
+    if(archive){ await supabase.from('archived_chats').upsert({ user_id:user.id, conversation_id:id }); setArchivedChats(prev=>({ ...prev,[id]:true })) }
+    else { await supabase.from('archived_chats').delete().eq('user_id',user.id).eq('conversation_id',id); setArchivedChats(prev=>{ const n={...prev}; delete n[id]; return n }) }
+  };
   if (loading || (!user && !loading)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -328,6 +343,10 @@ export default function ChatShell() {
                 <CircleDashed className="w-5 h-5 text-primary"/>
                 <span className="font-medium text-base">Status</span>
               </button>
+              <button onClick={()=>setArchivedOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-3 py-2 hover:bg-primary/20 transition">
+                <Archive className="w-5 h-5 text-primary"/>
+                <span className="font-medium text-base">Archived</span>
+              </button>
               <button onClick={()=>setCreateGroupOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-3 py-2 hover:bg-primary/20 transition">
                 <Users className="w-5 h-5 text-primary"/>
                 <span className="font-medium text-base">Create Group</span>
@@ -339,18 +358,20 @@ export default function ChatShell() {
                 setUnreadCounts={setGroupUnreadCounts}
                 onGroupClick={(id)=>{ navigate(`/group/${id}`); setLeftSidebarOpen(false) }}
               />
-              <SidebarConversations
-                conversations={conversations}
-                userProfiles={userProfiles}
-                unreadCounts={unreadCounts}
-                userId={user.id}
-                setActiveConversation={setActiveConversation}
-                setUnreadCounts={setUnreadCounts}
-                onDeleteConversation={handleDeleteConversation}
-                pinnedChats={pinnedChats}
-                onPinConversation={handlePinConversation}
-                onConversationClick={handleConversationClick}
-              />
+            <SidebarConversations
+              conversations={conversations.filter(c=>!archivedChats[c.id])}
+              userProfiles={userProfiles}
+              unreadCounts={unreadCounts}
+              userId={user.id}
+              setActiveConversation={setActiveConversation}
+              setUnreadCounts={setUnreadCounts}
+              onDeleteConversation={handleDeleteConversation}
+              pinnedChats={pinnedChats}
+              onPinConversation={handlePinConversation}
+              archivedChats={archivedChats}
+              onArchiveConversation={handleArchiveConversation}
+              onConversationClick={handleConversationClick}
+            />
             </div>
             
             <SidebarProfileArea
@@ -403,6 +424,10 @@ export default function ChatShell() {
               <CircleDashed className="w-5 h-5 text-primary"/>
               <span className="font-medium text-md">Status</span>
             </button>
+            <button onClick={()=>setArchivedOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-2 py-2 hover:bg-primary/20 transition">
+              <Archive className="w-5 h-5 text-primary"/>
+              <span className="font-medium text-md">Archived</span>
+            </button>
             <button onClick={()=>setCreateGroupOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-2 py-2 hover:bg-primary/20 transition">
               <Users className="w-5 h-5 text-primary"/>
               <span className="font-medium text-md">Create Group</span>
@@ -415,7 +440,7 @@ export default function ChatShell() {
             />
             
             <SidebarConversations
-              conversations={conversations}
+              conversations={conversations.filter(c=>!archivedChats[c.id])}
               userProfiles={userProfiles}
               unreadCounts={unreadCounts}
               userId={user.id}
@@ -424,6 +449,9 @@ export default function ChatShell() {
               onDeleteConversation={handleDeleteConversation}
               pinnedChats={pinnedChats}
               onPinConversation={handlePinConversation}
+              archivedChats={archivedChats}
+              onArchiveConversation={handleArchiveConversation}
+              onConversationClick={handleConversationClick}
             />
             <SidebarProfileArea
               myProfile={myProfile}
@@ -455,11 +483,33 @@ export default function ChatShell() {
             style={{ minWidth: 350, maxWidth: 450 }}
           >
             <RightSidebarUsers onConversationStarted={handleConversationStarted} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
-      <CreateGroupDialog
+      <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Archived Chats</DialogTitle></DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <SidebarConversations
+              conversations={conversations.filter(c=>archivedChats[c.id])}
+              userProfiles={userProfiles}
+              unreadCounts={unreadCounts}
+              userId={user?.id||''}
+              setActiveConversation={setActiveConversation}
+              setUnreadCounts={setUnreadCounts}
+              onDeleteConversation={handleDeleteConversation}
+              pinnedChats={pinnedChats}
+              onPinConversation={handlePinConversation}
+              archivedChats={archivedChats}
+              onArchiveConversation={handleArchiveConversation}
+              onConversationClick={(id)=>{ setArchivedOpen(false); handleConversationClick(id) }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
         open={createGroupOpen}
         onOpenChange={setCreateGroupOpen}
         candidates={Object.values(userProfiles)}

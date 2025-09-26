@@ -150,6 +150,24 @@ export type Database={
         }
         Relationships:[]
       }
+      archived_chats:{
+        Row:{
+          user_id:string
+          conversation_id:string
+          archived_at:string
+        }
+        Insert:{
+          user_id:string
+          conversation_id:string
+          archived_at?:string
+        }
+        Update:{
+          user_id?:string
+          conversation_id?:string
+          archived_at?:string
+        }
+        Relationships:[]
+      }
       groups:{
         Row:{
           id:string

@@ -23,8 +23,10 @@ interface SidebarConversationRowProps {
   unreadCounts: Record<string, number>;
   userId: string;
   isPinned: boolean;
+  isArchived?: boolean;
   isActive: boolean;
   onPinConversation?: (id: string, pin: boolean) => void;
+  onArchiveConversation?: (id: string, archive: boolean) => void;
   setActiveConversation: (id: string) => void;
   setUnreadCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   pinnedChats?: Record<string, string>;
@@ -38,8 +40,10 @@ export default function SidebarConversationRow({
   unreadCounts,
   userId,
   isPinned,
+  isArchived,
   isActive,
   onPinConversation,
+  onArchiveConversation,
   setActiveConversation,
   setUnreadCounts,
   onDeleteConversation,
@@ -144,6 +148,13 @@ export default function SidebarConversationRow({
             >
               <Pin className="w-4 h-4 mr-1" />
               {isPinned ? "Unpin Chat" : "Pin Chat"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="flex items-center"
+              onClick={(e)=>{ e.stopPropagation(); onArchiveConversation?.(c.id, !isArchived); toast({ title: isArchived?"Chat unarchived":"Chat archived" }) }}
+            >
+              <span className="w-4 h-4 mr-1 inline-block">📦</span>
+              {isArchived?"Unarchive Chat":"Archive Chat"}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="flex items-center text-red-600 hover:bg-transparent focus:bg-transparent data-[highlighted]:bg-transparent data-[highlighted]:text-red-700"

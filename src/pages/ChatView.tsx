@@ -45,6 +45,8 @@ const ChatView = () => {
   const [profileModal,setProfileModal]=useState<{open:boolean,profile:any|null}>({open:false,profile:null});
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastToastTermRef = useRef<string>("");
+  const searchOpenedAtRef = useRef<number>(0);
+  const lastEditAtRef = useRef<number>(0);
 
   // Helper function to check if message can be edited (within 2 minutes)
   const canEditMessage = (messageCreatedAt: string, senderId: string) => {
@@ -239,12 +241,16 @@ const ChatView = () => {
     if(!conversationId) return;
     localStorage.setItem(`search:conv:${conversationId}`, searchTerm);
   },[conversationId,searchTerm]);
-  useEffect(()=>{ if(searchOpen) searchInputRef.current?.focus() },[searchOpen]);
+  useEffect(()=>{ if(searchOpen){ searchOpenedAtRef.current=Date.now(); searchInputRef.current?.focus() } },[searchOpen]);
   useEffect(()=>{
+    if(!searchOpen) return;
     const term = searchTerm.trim();
-    if(!searchOpen){ return }
     if(!term){ lastToastTermRef.current=""; return }
-    if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term }
+    const timer = setTimeout(()=>{
+      if(lastEditAtRef.current<=searchOpenedAtRef.current) return;
+      if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term }
+    },350);
+    return ()=>clearTimeout(timer);
   },[searchOpen,searchTerm,matchCount]);
   if (!conversationId) {
     return (
@@ -335,7 +341,7 @@ const ChatView = () => {
       {searchOpen && (
         <div className="px-2 sm:px-4 py-2 bg-muted/40 border-b">
           <div className="flex items-center gap-2">
-            <input ref={searchInputRef} value={searchTerm} onChange={e=>{ setSearchTerm(e.target.value); setActiveMatch(0) }} onKeyDown={(e)=>{ if(matchCount>0 && (e.key==='ArrowDown'||(e.key==='Enter'&&!e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p+1)%Math.max(matchCount,1)) } else if (matchCount>0 && (e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1)) } }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
+            <input ref={searchInputRef} value={searchTerm} onChange={e=>{ lastEditAtRef.current=Date.now(); setSearchTerm(e.target.value); setActiveMatch(0) }} onKeyDown={(e)=>{ if(matchCount>0 && (e.key==='ArrowDown'||(e.key==='Enter'&&!e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p+1)%Math.max(matchCount,1)) } else if (matchCount>0 && (e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1)) } }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
             <div className="text-sm text-muted-foreground whitespace-nowrap">{matchCount>0?`${activeMatch+1}/${matchCount}`:"0/0"}</div>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↑</button>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p+1)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↓</button>

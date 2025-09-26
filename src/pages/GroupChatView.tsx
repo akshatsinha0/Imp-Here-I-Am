@@ -25,11 +25,13 @@ const GroupChatView=()=>{
   const [activeMatch,setActiveMatch]=useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastToastTermRef = useRef<string>("");
+  const searchOpenedAtRef = useRef<number>(0);
+  const lastEditAtRef = useRef<number>(0);
   useEffect(()=>{ async function fetchName(){ if(!groupId) return; const { data }=await supabase.from("groups").select("*").eq("id",groupId).maybeSingle(); if(data?.name){ setGroupName(data.name) } } fetchName() },[groupId]);
   useEffect(()=>{ if(!groupId) return; const d=localStorage.getItem(`draft:group:${groupId}`)||""; chat.setInput(d); const s=localStorage.getItem(`search:group:${groupId}`)||""; setSearchTerm(s); setActiveMatch(0) },[groupId]);
   useEffect(()=>{ if(!groupId) return; localStorage.setItem(`search:group:${groupId}`, searchTerm) },[groupId,searchTerm]);
-  useEffect(()=>{ if(searchOpen) searchInputRef.current?.focus() },[searchOpen]);
-  useEffect(()=>{ const term=searchTerm.trim(); if(!searchOpen) return; if(!term){ lastToastTermRef.current=""; return } if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term } },[searchOpen,searchTerm,matchCount]);
+  useEffect(()=>{ if(searchOpen){ searchOpenedAtRef.current=Date.now(); searchInputRef.current?.focus() } },[searchOpen]);
+  useEffect(()=>{ if(!searchOpen) return; const term=searchTerm.trim(); if(!term){ lastToastTermRef.current=""; return } const t=setTimeout(()=>{ if(lastEditAtRef.current<=searchOpenedAtRef.current) return; if(matchCount===0 && lastToastTermRef.current!==term){ toast({ title:"entered result not found!!" }); lastToastTermRef.current=term } },350); return ()=>clearTimeout(t) },[searchOpen,searchTerm,matchCount]);
   if(!groupId){ return <div className="flex items-center justify-center h-full">Select a group</div> }
   return (
     <div className="flex flex-col h-full flex-1 w-full max-w-2xl mx-auto bg-gradient-to-br from-background to-accent rounded-none sm:rounded-lg border relative">
@@ -51,7 +53,7 @@ const GroupChatView=()=>{
       {searchOpen && (
         <div className="px-2 sm:px-4 py-2 bg-muted/40 border-b">
           <div className="flex items-center gap-2">
-            <input ref={searchInputRef} value={searchTerm} onChange={e=>{ setSearchTerm(e.target.value); setActiveMatch(0) }} onKeyDown={(e)=>{ if(matchCount>0 && (e.key==='ArrowDown'||(e.key==='Enter'&&!e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p+1)%Math.max(matchCount,1)) } else if (matchCount>0 && (e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1)) } }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
+            <input ref={searchInputRef} value={searchTerm} onChange={e=>{ lastEditAtRef.current=Date.now(); setSearchTerm(e.target.value); setActiveMatch(0) }} onKeyDown={(e)=>{ if(matchCount>0 && (e.key==='ArrowDown'||(e.key==='Enter'&&!e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p+1)%Math.max(matchCount,1)) } else if (matchCount>0 && (e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))){ e.preventDefault(); setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1)) } }} placeholder="Search messages" className="flex-1 px-3 py-2 rounded border" />
             <div className="text-sm text-muted-foreground whitespace-nowrap">{matchCount>0?`${activeMatch+1}/${matchCount}`:"0/0"}</div>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p-1+matchCount)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↑</button>
             <button disabled={matchCount<=1} onClick={()=>setActiveMatch(p=> (p+1)%Math.max(matchCount,1))} className="px-2 py-1 rounded border disabled:opacity-50">↓</button>

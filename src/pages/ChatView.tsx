@@ -316,6 +316,13 @@ const ChatView = () => {
           onDelete={handleDelete}
           onForward={handleForward}
           onCopy={handleCopy}
+          onViewOnceOpen={async (messageId) => {
+            const m = chat.messages.find(x=>x.id===messageId);
+            if(!m) return;
+            if(m.sender_id!==chat.user?.id && m.message_type==='view_once'){
+              await supabase.from('messages').update({ deleted_at:new Date().toISOString(), content:'This message was deleted' }).eq('id',messageId);
+            }
+          }}
         />
         <div ref={chat.messagesEndRef} />
       </div>

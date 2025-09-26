@@ -400,13 +400,16 @@ export function useChatMessages(conversationId?: string) {
     setUploadingFile(false);
     return { url: pub?.publicUrl || "", fileName: file.name, mime: file.type };
   }
-  const sendMessage = async (opts?: { sendVoiceBlob?: Blob }) => {
+  const sendMessage = async (opts?: { sendVoiceBlob?: Blob; ephemeralTTLSec?: number; viewOnce?: boolean }) => {
     if ((!input.trim() && !file && !opts?.sendVoiceBlob) || !user || !conversationId) return;
     let outType = "text";
     let file_url: string | undefined = undefined;
     let file_name: string | undefined = undefined;
     let file_mime: string | undefined = undefined;
     let outContent = input;
+    if (opts?.viewOnce) {
+      outType = "view_once";
+    }
     if (file) {
       const info = await uploadToSupabaseStorage(file);
       if (!info.url) return;
@@ -448,6 +451,11 @@ export function useChatMessages(conversationId?: string) {
       
       if (!scheduledTime) {
         setMessages((prev) => [...prev, { ...data, reactions: [] }]);
+      }
+      if (opts?.ephemeralTTLSec && opts.ephemeralTTLSec>0) {
+        setTimeout(async()=>{
+          await supabase.from("messages").update({ deleted_at:new Date().toISOString(), content:"This message was deleted" }).eq("id",data.id);
+        }, opts.ephemeralTTLSec*1000);
       }
       setInput(""); 
       setFile(null);

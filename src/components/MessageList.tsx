@@ -56,6 +56,7 @@ interface MessageListProps {
   onDelete?: (messageId: string) => void;
   onForward?: (messageId: string) => void;
   onCopy?: (messageId: string) => void;
+  onViewOnceOpen?: (messageId: string) => void;
 }
 
 const MessageList: React.FC<MessageListProps> = ({
@@ -137,6 +138,7 @@ const MessageList: React.FC<MessageListProps> = ({
                         fileName={msg.file_name}
                         fileMime={msg.file_mime}
                         type={msg.message_type}
+                        onViewOnceOpen={() => onViewOnceOpen?.(msg.id)}
                       />
                     )}
                   </span>
@@ -153,14 +155,14 @@ const MessageList: React.FC<MessageListProps> = ({
                       <MessageStatusLabel isRead={isRead} />
                     )}
                   </div>
-                  
-                  <MessageReactions
-                    reactions={msg.reactions || []}
-                    currentUserId={currentUserId}
-                    onReactionClick={(emoji) => onReaction?.(msg.id, emoji)}
-                  />
-                </div>
+      <MessageReactions 
+        reactions={msg.reactions || []}
+        currentUserId={currentUserId}
+        onReactionClick={(emoji) => onReaction?.(msg.id, emoji)}
+      />
+    </div>
 
+    {/* Message Actions */}
                 {/* Message Actions */}
                 <div className="absolute -top-8 right-0">
                   <MessageActions

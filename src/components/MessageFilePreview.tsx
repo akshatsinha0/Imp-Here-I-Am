@@ -6,12 +6,14 @@ interface MessageFilePreviewProps {
   fileName?: string;
   fileMime?: string | null;
   type?: string;
+  onViewOnceOpen?: () => void;
 }
 export default function MessageFilePreview({
   fileUrl,
   fileName,
   fileMime,
-  type
+  type,
+  onViewOnceOpen
 }: MessageFilePreviewProps) {
   if (!fileUrl) return null;
   if (type === "voice_note") {
@@ -19,6 +21,7 @@ export default function MessageFilePreview({
       <VoiceNotePlayer fileUrl={fileUrl} fileName={fileName} />
     );
   }
+  const isViewOnce=type==="view_once";
   return (
     <div className="flex items-center gap-2">
       <a
@@ -26,7 +29,8 @@ export default function MessageFilePreview({
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-1 hover:underline"
-        download={fileName}
+        download={isViewOnce?undefined:fileName}
+        onClick={(e)=>{ if(isViewOnce&&onViewOnceOpen){ setTimeout(()=>onViewOnceOpen(),300) } }}
       >
         <File className="w-4 h-4" />
         <span className="truncate max-w-[120px] text-xs">{fileName || "Attachment"}</span>

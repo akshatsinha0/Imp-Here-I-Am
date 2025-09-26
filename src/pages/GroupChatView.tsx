@@ -39,7 +39,7 @@ const GroupChatView=()=>{
       </div>
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2">
         {!chat.loading&&chat.messages.length===0&&(<div className="text-center text-muted-foreground py-8">No messages yet.</div>)}
-        <MessageList messages={chat.messages as any} currentUserId={chat.user?.id||""} />
+        <MessageList messages={chat.messages as any} currentUserId={chat.user?.id||""} onViewOnceOpen={async (messageId:string)=>{ const m=(chat.messages as any).find((x:any)=>x.id===messageId); if(m&&m.sender_id!==chat.user?.id&&m.message_type==='view_once'){ await supabase.from('group_messages').update({ deleted_at:new Date().toISOString(), content:'This message was deleted' }).eq('id',messageId) } }} />
         <div ref={chat.messagesEndRef}/>
       </div>
       <MessageComposer input={chat.input} setInput={chat.setInput} file={chat.file} setFile={chat.setFile} uploadingFile={chat.uploadingFile} sendMessage={chat.sendMessage} loading={chat.loading} handleTyping={(e)=>chat.setInput(e.target.value)} handleKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); chat.sendMessage() } }} theme="auto"/>

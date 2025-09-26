@@ -1,16 +1,17 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Smile } from "lucide-react";
+import { Smile, Timer, EyeOff, MapPin } from "lucide-react";
 import EmojiPicker from "@/components/EmojiPicker";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import { toast } from "@/components/ui/use-toast";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 interface MessageComposerProps {
   input: string;
   setInput: (val: string) => void;
   file: File | null;
   setFile: (f: File | null) => void;
   uploadingFile: boolean;
-  sendMessage: (opts?: { sendVoiceBlob?: Blob }) => Promise<void>;
+  sendMessage: (opts?: { sendVoiceBlob?: Blob; ephemeralTTLSec?: number; viewOnce?: boolean }) => Promise<void>;
   loading: boolean;
   handleTyping: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -24,6 +25,8 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiBtnRef = useRef<HTMLButtonElement>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [ephemeralTTLSec, setEphemeralTTLSec] = useState<number>(0);
+  const [viewOnce, setViewOnce] = useState(false);
   useEffect(() => {
     if (!input && !file && !uploadingFile) {
       setVoiceBlob(null);
@@ -40,21 +43,30 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   };
   const handleSend = () => {
     if (voiceBlob) {
-      sendMessage({ sendVoiceBlob: voiceBlob });
+      sendMessage({ sendVoiceBlob: voiceBlob, ephemeralTTLSec, viewOnce });
       setVoiceBlob(null);
     } else {
-      sendMessage();
+      sendMessage({ ephemeralTTLSec, viewOnce });
     }
+    setEphemeralTTLSec(0);
+    setViewOnce(false);
   };
+  const requestLocation=()=>{
+    if(!navigator.geolocation){ toast({ title:"Location not supported" }); return }
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const { latitude, longitude }=pos.coords;
+      const url=`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`;
+      setInput(url);
+      sendMessage({ ephemeralTTLSec:0, viewOnce:false });
+    },err=>{ toast({ title:"Location denied" }) },{ enableHighAccuracy:true, timeout:10000 });
+  }
   return (
     <div className="mobile-message-composer mobile-keyboard-adjust p-3 sm:p-4 border-t flex gap-2 bg-gradient-to-b from-secondary/70 to-background/60 items-end z-10 relative rounded-b-lg shadow-inner safe-area-inset">
-      {/* Editing indicator */}
       {isEditing && (
         <div className="absolute -top-8 left-4 bg-primary/10 text-primary px-3 py-1 rounded-t-lg text-sm">
           Editing message
         </div>
       )}
-      
       {!isEditing && (
         <>
           <div className="relative">
@@ -120,9 +132,28 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
             onRecordingComplete={handleVoiceComplete}
             onReset={handleVoiceReset}
           />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" title="Disappearing timer">
+                <Timer className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={()=>setEphemeralTTLSec(0)}>Off</DropdownMenuItem>
+              <DropdownMenuItem onClick={()=>setEphemeralTTLSec(60)}>1 minute</DropdownMenuItem>
+              <DropdownMenuItem onClick={()=>setEphemeralTTLSec(900)}>15 minutes</DropdownMenuItem>
+              <DropdownMenuItem onClick={()=>setEphemeralTTLSec(3600)}>1 hour</DropdownMenuItem>
+              <DropdownMenuItem onClick={()=>setEphemeralTTLSec(86400)}>1 day</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="icon" variant={viewOnce?"default":"ghost"} title="View once" onClick={()=>setViewOnce(v=>!v)}>
+            <EyeOff className="w-5 h-5" />
+          </Button>
+          <Button size="icon" variant="ghost" title="Share location" onClick={requestLocation}>
+            <MapPin className="w-5 h-5" />
+          </Button>
         </>
       )}
-      
       <input
         type="text"
         className={`mobile-input-field flex-1 px-3 sm:px-4 py-3 sm:py-2 rounded-full sm:rounded border focus:outline-none focus:ring text-base shadow-sm transition disabled:opacity-60 ${
@@ -130,7 +161,7 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
             ? "bg-primary/5 border-primary focus:ring-primary/20" 
             : "bg-background/70 dark:bg-background/80 focus:ring"
         }`}
-        style={{ minHeight: 48, fontSize: "16px" }} // 16px prevents zoom on iOS
+        style={{ minHeight: 48, fontSize: "16px" }}
         placeholder={isEditing ? "Edit your message…" : "Type a message…"}
         value={input}
         onChange={handleTyping}
@@ -141,7 +172,6 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
         autoCapitalize="sentences"
         spellCheck="true"
       />
-      
       {isEditing ? (
         <div className="flex gap-2">
           <Button

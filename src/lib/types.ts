@@ -254,6 +254,12 @@ export type Database={
           id:string
           is_online:boolean|null
           last_seen:string|null
+          avatar_url:string|null
+          phone:string|null
+          location:string|null
+          bio:string|null
+          skills:string|null
+          interests:string|null
         }
         Insert:{
           created_at?:string
@@ -262,6 +268,12 @@ export type Database={
           id:string
           is_online?:boolean|null
           last_seen?:string|null
+          avatar_url?:string|null
+          phone?:string|null
+          location?:string|null
+          bio?:string|null
+          skills?:string|null
+          interests?:string|null
         }
         Update:{
           created_at?:string
@@ -270,6 +282,42 @@ export type Database={
           id?:string
           is_online?:boolean|null
           last_seen?:string|null
+          avatar_url?:string|null
+          phone?:string|null
+          location?:string|null
+          bio?:string|null
+          skills?:string|null
+          interests?:string|null
+        }
+        Relationships:[]
+      }
+      statuses:{
+        Row:{
+          id:string
+          user_id:string
+          file_url:string
+          file_mime:string|null
+          caption:string|null
+          created_at:string
+          expires_at:string
+        }
+        Insert:{
+          id?:string
+          user_id:string
+          file_url:string
+          file_mime?:string|null
+          caption?:string|null
+          created_at?:string
+          expires_at:string
+        }
+        Update:{
+          id?:string
+          user_id?:string
+          file_url?:string
+          file_mime?:string|null
+          caption?:string|null
+          created_at?:string
+          expires_at?:string
         }
         Relationships:[]
       }

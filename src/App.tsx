@@ -10,6 +10,7 @@ import ChatShell from "@/components/ChatShell";
 import ChatView from "./pages/ChatView";
 import GroupChatView from "./pages/GroupChatView";
 import Settings from "./pages/Settings";
+import Status from "./pages/Status";
 import Verify from "./pages/Verify";
 import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "next-themes";
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/chat/:id" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
               <Route path="/group/:id" element={<ErrorBoundary><GroupChatView /></ErrorBoundary>} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/status" element={<ErrorBoundary><Status /></ErrorBoundary>} />
             </Route>
             {}
             <Route path="*" element={<NotFound />} />

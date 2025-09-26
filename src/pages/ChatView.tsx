@@ -6,12 +6,13 @@ import ForwardMessageDialog from "@/components/ForwardMessageDialog";
 import SoundToggle from "@/components/SoundToggle";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import { Button } from "@/components/ui/button";
-import { Trash2, ArrowLeft, Users, MessageCircle, Video as VideoIcon } from "lucide-react";
+import { Trash2, ArrowLeft, Users, MessageCircle, Video as VideoIcon, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { useSoundManager } from "@/utils/SoundManager";
 import { useState } from "react";
 import VideoCallDialog from "@/components/video/VideoCallDialog";
+import ViewUserProfileModal from "@/components/ViewUserProfileModal";
 
 interface OutletContext {
   toggleLeftSidebar: () => void;
@@ -37,6 +38,9 @@ const ChatView = () => {
   });
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [callOpen, setCallOpen] = useState(false);
+  const [searchOpen,setSearchOpen]=useState(false);
+  const [searchTerm,setSearchTerm]=useState("");
+  const [profileModal,setProfileModal]=useState<{open:boolean,profile:any|null}>({open:false,profile:null});
 
   // Helper function to check if message can be edited (within 2 minutes)
   const canEditMessage = (messageCreatedAt: string, senderId: string) => {
@@ -258,7 +262,9 @@ const ChatView = () => {
         </div>
         
         <div className="flex items-center gap-2 min-w-0 flex-1 justify-center md:justify-start">
-          <span className="text-base sm:text-lg md:text-xl font-medium truncate">{partnerName}</span>
+          <button onClick={async()=>{ const { data }=await supabase.from('conversations').select('*').eq('id',conversationId).maybeSingle(); const pid=data?.participant_1===chat.user?.id?data?.participant_2:data?.participant_1; if(!pid) return; const { data: prof }=await supabase.from('user_profiles').select('*').eq('id',pid).maybeSingle(); setProfileModal({ open:true, profile: prof||null }) }} className="truncate text-left">
+            <span className="text-base sm:text-lg md:text-xl font-medium truncate">{partnerName}</span>
+          </button>
           {chat.isOtherTyping && (
             <span className="text-xs sm:text-sm italic shrink-0 text-orange-300 animate-pulse">
               typing...
@@ -267,6 +273,13 @@ const ChatView = () => {
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            onClick={()=>setSearchOpen(o=>!o)}
+            className="mobile-touch-target p-2 rounded-full hover:bg-white/10 transition-colors"
+            aria-label="Search in chat"
+          >
+            <Search className="w-5 h-5" />
+          </button>
           <button
             onClick={context?.toggleRightSidebar || (() => {})}
             className="md:hidden mobile-touch-target p-2 rounded-full hover:bg-white/10 transition-colors"
@@ -296,7 +309,11 @@ const ChatView = () => {
         </div>
       </div>
       
-      {/* Messages Area */}
+      {searchOpen && (
+        <div className="px-2 sm:px-4 py-2 bg-muted/40 border-b">
+          <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search messages" className="w-full px-3 py-2 rounded border" />
+        </div>
+      )}
       <div className="mobile-message-list flex-1 overflow-y-auto px-2 sm:px-4 py-2 bg-background/90 dark:bg-background/80 transition-colors -webkit-overflow-scrolling-touch">
         {chat.loading && (
           <div className="text-center text-muted-foreground py-8 text-responsive-base">Loading messages...</div>
@@ -305,7 +322,7 @@ const ChatView = () => {
           <div className="text-center text-muted-foreground py-8 text-responsive-base">No messages yet.</div>
         )}
         <MessageList 
-          messages={chat.messages.map(msg => ({
+          messages={chat.messages.filter(m=>!searchTerm||m.content?.toLowerCase().includes(searchTerm.toLowerCase())).map(msg => ({
             ...msg,
             canEdit: canEditMessage(msg.created_at, msg.sender_id)
           }))} 
@@ -368,6 +385,8 @@ const ChatView = () => {
         currentUserId={chat.user?.id}
         title={partnerName}
       />
+
+      <ViewUserProfileModal profile={profileModal.profile} open={profileModal.open} onOpenChange={(o)=>setProfileModal(prev=>({ ...prev, open:o }))} />
     </div>
   );
 };

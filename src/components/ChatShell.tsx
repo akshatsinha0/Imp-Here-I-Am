@@ -10,7 +10,7 @@ import CreateGroupDialog from "./CreateGroupDialog";
 import SidebarProfileArea from "./SidebarProfileArea";
 import HamburgerMenu from "./HamburgerMenu";
 import { useTheme } from "next-themes";
-import { Moon, Sun, User, Users } from "lucide-react";
+import { Moon, Sun, User, Users, CircleDashed } from "lucide-react";
 import RightSidebarUsers from "./RightSidebarUsers";
 import ErrorBoundary from "./ErrorBoundary";
 import {
@@ -324,6 +324,10 @@ export default function ChatShell() {
             </button>
             
             <div className="flex-1 overflow-y-auto">
+              <button onClick={()=>navigate('/status')} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-3 py-2 hover:bg-primary/20 transition">
+                <CircleDashed className="w-5 h-5 text-primary"/>
+                <span className="font-medium text-base">Status</span>
+              </button>
               <button onClick={()=>setCreateGroupOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-3 py-2 hover:bg-primary/20 transition">
                 <Users className="w-5 h-5 text-primary"/>
                 <span className="font-medium text-base">Create Group</span>
@@ -394,6 +398,10 @@ export default function ChatShell() {
             <button onClick={handlePersonalSpaceClick} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-2 py-2 hover:bg-primary/20 transition">
               <User className="w-6 h-6 text-primary"/>
               <span className="font-medium text-md">Personal Space</span>
+            </button>
+            <button onClick={()=>navigate('/status')} className="flex items-center gap-3 rounded bg-primary/10 mb-2 px-2 py-2 hover:bg-primary/20 transition">
+              <CircleDashed className="w-5 h-5 text-primary"/>
+              <span className="font-medium text-md">Status</span>
             </button>
             <button onClick={()=>setCreateGroupOpen(true)} className="flex items-center gap-3 rounded bg-primary/10 mb-3 px-2 py-2 hover:bg-primary/20 transition">
               <Users className="w-5 h-5 text-primary"/>

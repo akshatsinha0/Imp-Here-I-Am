@@ -22,8 +22,7 @@ export default function UserBrief({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <Avatar className={`w-${size} h-${size}`}>
-        {}
-        <AvatarImage src={undefined} />
+        <AvatarImage src={profile.avatar_url || undefined} />
         <AvatarFallback>{firstLetter}</AvatarFallback>
       </Avatar>
       <span className="truncate text-sm">{profile.display_name || profile.email}</span>
